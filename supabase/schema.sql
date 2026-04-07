@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS pairing_sessions (
   current_video_id UUID REFERENCES videos(id),
   playback_state TEXT NOT NULL DEFAULT 'idle' CHECK (playback_state IN ('playing', 'paused', 'idle')),
   playback_position REAL NOT NULL DEFAULT 0,
+  last_command TEXT,
+  last_command_at TIMESTAMPTZ,
   paired BOOLEAN NOT NULL DEFAULT false,
   expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '24 hours'),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()

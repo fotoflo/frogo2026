@@ -1,0 +1,58 @@
+# Curate Playlist
+
+Create a new channel with curated YouTube videos on a given topic.
+
+Use when the user says "curate", "new channel", "add playlist", "curate playlist", or provides a topic to add.
+
+## Arguments
+
+- `$ARGUMENTS` — the topic or channel name (e.g., "machine learning", "stoic philosophy", "kids science experiments")
+
+## Steps
+
+1. **Research videos**: Use WebSearch to find 8-12 high-quality YouTube videos on the topic. Prioritize:
+   - Educational, well-produced content
+   - Popular channels with good engagement
+   - Mix of short (5-15 min) and long (20-60 min) content
+   - Recent uploads preferred but classic talks are fine
+
+2. **Extract video IDs**: For each video, get the YouTube video ID from the URL (the `v=` parameter).
+
+3. **Choose channel metadata**:
+   - `name`: A clear, concise channel name
+   - `slug`: lowercase-hyphenated version of name
+   - `description`: 1-2 sentences describing the channel's focus
+   - `icon`: A single relevant emoji
+
+4. **Insert into database**: Run the SQL via the Supabase Management API:
+
+```bash
+curl -s -X POST 'https://api.supabase.com/v1/projects/cnnttsihfbyxhzlmzdtv/database/query' \
+  -H 'Authorization: Bearer sbp_21ada08522e93b65dc9daa6770c488e0be1edcf8' \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "<SQL HERE>"}'
+```
+
+The SQL should:
+- INSERT the channel into `channels` table
+- INSERT all videos into `videos` table with proper `channel_id`, `youtube_id`, `title`, `description`, `thumbnail_url` (use `https://img.youtube.com/vi/{youtube_id}/maxresdefault.jpg`), `duration_seconds` (estimate from video length), and `position` (1-based order)
+- Use `ON CONFLICT` to avoid duplicates
+
+Example SQL pattern:
+```sql
+INSERT INTO channels (name, slug, description, icon) VALUES
+  ('Topic Name', 'topic-name', 'Description here.', '🎯')
+ON CONFLICT (slug) DO NOTHING;
+
+INSERT INTO videos (channel_id, youtube_id, title, description, thumbnail_url, duration_seconds, position) VALUES
+  ((SELECT id FROM channels WHERE slug = 'topic-name'), 'VIDEO_ID', 'Title', 'Description', 'https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg', 600, 1),
+  ...
+ON CONFLICT (channel_id, youtube_id) DO NOTHING;
+```
+
+5. **Verify**: Query the database to confirm the channel and video count:
+```sql
+SELECT c.name, COUNT(v.id) as videos FROM channels c LEFT JOIN videos v ON v.channel_id = c.id WHERE c.slug = 'topic-name' GROUP BY c.id
+```
+
+6. **Report**: Tell the user the channel was created with N videos, and provide the URL: `https://tv.aimhuge.com/channel/{slug}`

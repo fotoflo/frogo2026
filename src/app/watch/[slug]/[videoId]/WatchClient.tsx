@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import YouTubePlayer from "@/components/YouTubePlayer";
 import PairingDisplay from "@/components/PairingDisplay";
+import { supabase } from "@/lib/supabase";
 
 interface WatchClientProps {
   channel: any;
@@ -27,7 +28,7 @@ export default function WatchClient({
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [paired, setPaired] = useState(false);
   const playerRef = useRef<any>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval>>(null);
+  const lastCommandAtRef = useRef<string | null>(null);
 
   // Create pairing session on mount
   useEffect(() => {
@@ -43,51 +44,86 @@ export default function WatchClient({
       });
   }, [video.id]);
 
-  // Poll for pairing status and remote commands
+  // Handle incoming commands from the remote
+  const handleCommand = useCallback(
+    (command: string) => {
+      if (!playerRef.current) return;
+      const player = playerRef.current;
+
+      switch (command) {
+        case "play":
+          player.playVideo();
+          break;
+        case "pause":
+          player.pauseVideo();
+          break;
+        case "next": {
+          const currentIdx = playlist.findIndex((v) => v.id === video.id);
+          const next = playlist[currentIdx + 1];
+          if (next) {
+            window.location.href = `/watch/${channel.slug}/${next.id}`;
+          }
+          break;
+        }
+        case "prev": {
+          const currentIdx2 = playlist.findIndex((v) => v.id === video.id);
+          const prev = playlist[currentIdx2 - 1];
+          if (prev) {
+            window.location.href = `/watch/${channel.slug}/${prev.id}`;
+          }
+          break;
+        }
+      }
+    },
+    [playlist, video.id, channel.slug]
+  );
+
+  // Subscribe to Supabase Realtime changes on the pairing_session row
   useEffect(() => {
     if (!sessionId) return;
 
-    pollRef.current = setInterval(async () => {
-      const res = await fetch(`/api/pair/${sessionId}`);
-      const data = await res.json();
+    const channel = supabase
+      .channel(`pairing:${sessionId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "pairing_sessions",
+          filter: `id=eq.${sessionId}`,
+        },
+        (payload) => {
+          const newRow = payload.new as any;
 
-      if (data.paired && !paired) {
-        setPaired(true);
-      }
-
-      if (data.command && playerRef.current) {
-        const player = playerRef.current;
-        switch (data.command) {
-          case "play":
-            player.playVideo();
-            break;
-          case "pause":
-            player.pauseVideo();
-            break;
-          case "next": {
-            const currentIdx = playlist.findIndex((v) => v.id === video.id);
-            const next = playlist[currentIdx + 1];
-            if (next) {
-              window.location.href = `/watch/${channel.slug}/${next.id}`;
-            }
-            break;
+          // Detect pairing
+          if (newRow.paired && !paired) {
+            setPaired(true);
           }
-          case "prev": {
-            const currentIdx2 = playlist.findIndex((v) => v.id === video.id);
-            const prev = playlist[currentIdx2 - 1];
-            if (prev) {
-              window.location.href = `/watch/${channel.slug}/${prev.id}`;
-            }
-            break;
+
+          // Handle discrete commands via last_command + last_command_at
+          if (
+            newRow.last_command &&
+            newRow.last_command_at &&
+            newRow.last_command_at !== lastCommandAtRef.current
+          ) {
+            lastCommandAtRef.current = newRow.last_command_at;
+            handleCommand(newRow.last_command);
+          }
+
+          // Handle playback state changes (play/pause set directly)
+          if (newRow.playback_state === "playing") {
+            playerRef.current?.playVideo();
+          } else if (newRow.playback_state === "paused") {
+            playerRef.current?.pauseVideo();
           }
         }
-      }
-    }, 2000);
+      )
+      .subscribe();
 
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      supabase.removeChannel(channel);
     };
-  }, [sessionId, paired, video.id, playlist, channel.slug]);
+  }, [sessionId, paired, handleCommand]);
 
   const handleReady = useCallback((player: any) => {
     playerRef.current = player;

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { supabase } from "@/lib/supabase";
 
 function PairContent() {
   const searchParams = useSearchParams();
@@ -13,6 +14,8 @@ function PairContent() {
   const [paired, setPaired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const hasAutoPaired = useRef(false);
 
   async function handlePair() {
     setError(null);
@@ -30,21 +33,80 @@ function PairContent() {
     setPaired(true);
   }
 
+  // Send a command by writing directly to the pairing_sessions row.
+  // The desktop's Realtime subscription picks it up instantly.
   async function sendCommand(command: string) {
     if (!sessionId) return;
-    await fetch("/api/pair/command", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, command }),
-    });
-    if (command === "play") setIsPlaying(true);
-    if (command === "pause") setIsPlaying(false);
+
+    const now = new Date().toISOString();
+
+    // For play/pause, update both playback_state and last_command
+    // For next/prev, only set last_command (they are discrete actions)
+    const updates: Record<string, any> = {
+      last_command: command,
+      last_command_at: now,
+    };
+
+    if (command === "play") {
+      updates.playback_state = "playing";
+      setIsPlaying(true);
+    } else if (command === "pause") {
+      updates.playback_state = "paused";
+      setIsPlaying(false);
+    }
+
+    const { error: updateError } = await supabase
+      .from("pairing_sessions")
+      .update(updates)
+      .eq("id", sessionId);
+
+    if (updateError) {
+      console.error("Failed to send command:", updateError);
+    }
   }
 
+  // Subscribe to Realtime to track playback state from desktop
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const channel = supabase
+      .channel(`remote:${sessionId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "pairing_sessions",
+          filter: `id=eq.${sessionId}`,
+        },
+        (payload) => {
+          const newRow = payload.new as any;
+          // Keep local play/pause state in sync if desktop changes it
+          if (newRow.playback_state === "playing") {
+            setIsPlaying(true);
+          } else if (newRow.playback_state === "paused") {
+            setIsPlaying(false);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setConnected(true);
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [sessionId]);
+
   // Auto-pair if code came from QR
-  if (initialCode && !paired && !sessionId && !error) {
-    handlePair();
-  }
+  useEffect(() => {
+    if (initialCode && !paired && !sessionId && !error && !hasAutoPaired.current) {
+      hasAutoPaired.current = true;
+      handlePair();
+    }
+  }, [initialCode, paired, sessionId, error]);
 
   if (!paired) {
     return (
@@ -87,6 +149,9 @@ function PairContent() {
         <div className="inline-flex items-center gap-2 rounded-full bg-green-500/10 border border-green-500/30 px-4 py-2 text-green-400 text-sm">
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           Connected to TV
+          {connected && (
+            <span className="text-xs opacity-60 ml-1">- live</span>
+          )}
         </div>
       </div>
 

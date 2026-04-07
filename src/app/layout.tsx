@@ -39,8 +39,11 @@ export default function RootLayout({
               frogo.tv
             </Link>
             <div className="flex items-center gap-6 text-sm text-muted">
-              <Link href="/" className="hover:text-foreground transition-colors">
+              <Link href="/" className="hidden sm:inline hover:text-foreground transition-colors">
                 Channels
+              </Link>
+              <Link href="/mobile" className="sm:hidden hover:text-foreground transition-colors">
+                Browse
               </Link>
               <Link
                 href="/pair"
