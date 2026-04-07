@@ -133,6 +133,38 @@ export default function WatchClient({
   const nextVideo = playlist[currentIdx + 1];
   const prevVideo = playlist[currentIdx - 1];
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      switch (e.key) {
+        case " ":
+        case "k":
+          e.preventDefault();
+          if (playerRef.current) {
+            const state = playerRef.current.getPlayerState();
+            state === 1 ? playerRef.current.pauseVideo() : playerRef.current.playVideo();
+          }
+          break;
+        case "ArrowRight":
+        case "n":
+          if (nextVideo) window.location.href = `/watch/${channel.slug}/${nextVideo.id}`;
+          break;
+        case "ArrowLeft":
+        case "p":
+          if (prevVideo) window.location.href = `/watch/${channel.slug}/${prevVideo.id}`;
+          break;
+        case "f": {
+          const iframe = document.querySelector("iframe");
+          iframe?.requestFullscreen?.();
+          break;
+        }
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [channel.slug, nextVideo, prevVideo]);
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-6">
       <Link
@@ -158,6 +190,12 @@ export default function WatchClient({
           <div className="mt-4">
             <h1 className="text-xl font-semibold">{video.title}</h1>
             <p className="text-sm text-muted mt-2">{video.description}</p>
+            <div className="flex gap-4 mt-3 text-xs text-muted">
+              <span><kbd className="px-1.5 py-0.5 bg-card-bg border border-card-border rounded text-[10px]">Space</kbd> play/pause</span>
+              <span><kbd className="px-1.5 py-0.5 bg-card-bg border border-card-border rounded text-[10px]">N</kbd> next</span>
+              <span><kbd className="px-1.5 py-0.5 bg-card-bg border border-card-border rounded text-[10px]">P</kbd> prev</span>
+              <span><kbd className="px-1.5 py-0.5 bg-card-bg border border-card-border rounded text-[10px]">F</kbd> fullscreen</span>
+            </div>
           </div>
 
           {/* Prev/Next controls */}

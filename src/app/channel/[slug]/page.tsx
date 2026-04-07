@@ -52,7 +52,15 @@ export default async function ChannelPage({
           <span className="text-3xl">{channel.icon}</span>
           <h1 className="text-3xl font-bold tracking-tight">{channel.name}</h1>
         </div>
-        <p className="text-muted max-w-xl">{channel.description}</p>
+        <p className="text-muted max-w-xl mb-4">{channel.description}</p>
+        {channel.videos.length > 0 && (
+          <Link
+            href={`/watch/${channel.slug}/${channel.videos[0].id}`}
+            className="inline-flex items-center gap-2 rounded-xl bg-accent hover:bg-accent-hover text-white font-medium px-6 py-3 transition-colors"
+          >
+            <span>▶</span> Play All
+          </Link>
+        )}
       </div>
 
       <div className="space-y-3">
