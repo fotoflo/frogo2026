@@ -51,6 +51,9 @@ export default function RootLayout({
               >
                 Pair Remote
               </Link>
+              <Link href="/about" className="hover:text-foreground transition-colors">
+                About
+              </Link>
             </div>
           </div>
         </nav>
