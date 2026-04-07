@@ -145,7 +145,15 @@ export default function WatchClient({
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Main player area */}
         <div>
-          <YouTubePlayer videoId={video.youtube_id} onReady={handleReady} />
+          <YouTubePlayer
+            videoId={video.youtube_id}
+            onReady={handleReady}
+            onEnded={() => {
+              if (nextVideo) {
+                window.location.href = `/watch/${channel.slug}/${nextVideo.id}`;
+              }
+            }}
+          />
 
           <div className="mt-4">
             <h1 className="text-xl font-semibold">{video.title}</h1>

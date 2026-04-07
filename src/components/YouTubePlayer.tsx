@@ -9,16 +9,21 @@ declare global {
   }
 }
 
+// YouTube Player States
+const YT_ENDED = 0;
+
 interface YouTubePlayerProps {
   videoId: string;
   onStateChange?: (state: number) => void;
   onReady?: (player: any) => void;
+  onEnded?: () => void;
 }
 
 export default function YouTubePlayer({
   videoId,
   onStateChange,
   onReady,
+  onEnded,
 }: YouTubePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
@@ -36,10 +41,15 @@ export default function YouTubePlayer({
       },
       events: {
         onReady: (e: any) => onReady?.(e.target),
-        onStateChange: (e: any) => onStateChange?.(e.data),
+        onStateChange: (e: any) => {
+          onStateChange?.(e.data);
+          if (e.data === YT_ENDED) {
+            onEnded?.();
+          }
+        },
       },
     });
-  }, [videoId, onReady, onStateChange]);
+  }, [videoId, onReady, onStateChange, onEnded]);
 
   useEffect(() => {
     if (window.YT?.Player) {
