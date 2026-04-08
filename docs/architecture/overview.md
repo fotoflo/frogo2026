@@ -73,6 +73,13 @@ Each channel has a dynamic OpenGraph image generated at build/request time via `
 
 Thumbnail validation uses HEAD requests with a 3-second timeout. YouTube's `maxresdefault.jpg` is tried first, falling back to `hqdefault.jpg`. Tiny placeholder images (<2KB, which YouTube returns for missing thumbnails) are rejected. Images revalidate daily (`revalidate = 86400`).
 
+### Analytics
+Page views are tracked via the `analytics` library with two plugins:
+- **Mixpanel** (token: 100718) — user behavior, custom events
+- **Google Analytics** (G-RG302NZGNF) — standard page view metrics
+
+The `AnalyticsProvider` client component wraps the app and fires `analytics.page()` on each pathname change. See `src/lib/analytics.ts`.
+
 ## Tech Stack
 
 | Layer | Technology |

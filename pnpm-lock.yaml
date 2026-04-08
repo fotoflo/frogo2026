@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@analytics/google-analytics':
+        specifier: ^1.1.0
+        version: 1.1.0
       '@analytics/mixpanel':
         specifier: ^0.4.0
         version: 0.4.0
@@ -78,6 +81,9 @@ packages:
 
   '@analytics/global-storage-utils@0.1.9':
     resolution: {integrity: sha512-+xm6CDnWsVOQIKkqbPRPRdYDXKk3PNgr/bCZWSI+7tEDT5PCDgI0QSBZe+FqCVkCRtTkgOrjFOY7wOM8Gq+ndA==}
+
+  '@analytics/google-analytics@1.1.0':
+    resolution: {integrity: sha512-i8uGyELMtwEUAf3GNWNLNBzhRvReDn1RUxvMdMhjUA7+GNGxPOM4kkzFfv3giQXKNxTEjfsh75kqNcscbJsuaA==}
 
   '@analytics/localstorage-utils@0.1.12':
     resolution: {integrity: sha512-BL3vuZUwWgMqdkQsE0GKsED5SPLC6daI4K4LE0a/BkKv+4Cae5JLLqpO5gju2HUGOjJxIvw8U/G5EcglNY5+1w==}
@@ -2559,6 +2565,8 @@ snapshots:
   '@analytics/global-storage-utils@0.1.9':
     dependencies:
       '@analytics/type-utils': 0.6.4
+
+  '@analytics/google-analytics@1.1.0': {}
 
   '@analytics/localstorage-utils@0.1.12':
     dependencies:
