@@ -20,6 +20,12 @@ try {
   execSync("rm -rf .next");
 } catch {}
 
+// Start vitest in watch mode
+const vitest = spawn("npx", ["vitest", "watch", "--reporter=dot"], {
+  stdio: "inherit",
+  env: { ...process.env },
+});
+
 // Start Next.js
 const next = spawn("npx", ["next", "dev", "-p", String(PORT)], {
   stdio: "inherit",
@@ -59,8 +65,12 @@ async function startTunnel() {
 
 startTunnel();
 
-next.on("exit", (code) => process.exit(code ?? 0));
+next.on("exit", (code) => {
+  vitest.kill();
+  process.exit(code ?? 0);
+});
 process.on("SIGINT", () => {
   next.kill();
+  vitest.kill();
   process.exit(0);
 });

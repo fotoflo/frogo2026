@@ -5,6 +5,7 @@ import YouTubePlayer from "@/components/YouTubePlayer";
 import MiniQR from "@/components/MiniQR";
 import OnScreenRemote from "@/components/OnScreenRemote";
 import { whatsOnNow } from "@/lib/schedule";
+import { getInitialAutoplayState, autoplayTransition } from "@/lib/autoplay";
 import { supabase } from "@/lib/supabase";
 
 interface Video {
@@ -54,20 +55,29 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
   const channelNumberTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   // Channel banner
-  const [showBanner, setShowBanner] = useState(true);
+  const [showBanner, setShowBanner] = useState(false);
   const bannerTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   // QR lingers 10s after chrome fades
   const [qrHidden, setQrHidden] = useState(false);
   const qrTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-  // Calculate what's on now for this channel
-  const durations = videos.map((v) => v.duration_seconds);
-  const schedule = whatsOnNow(durations);
-
-  const [currentVideoIndex, setCurrentVideoIndex] = useState(schedule.index);
-  const [startSeconds, setStartSeconds] = useState(schedule.startSeconds);
+  // Schedule state — initialized to safe defaults to avoid hydration mismatch
+  // (whatsOnNow uses Date.now() which differs between server and client)
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [startSeconds, setStartSeconds] = useState(0);
+  const [scheduleReady, setScheduleReady] = useState(false);
   const activeVideo = videos[currentVideoIndex] || videos[0];
+
+  // Calculate what's on now — client-side only
+  useEffect(() => {
+    const durations = videos.map((v) => v.duration_seconds);
+    const schedule = whatsOnNow(durations);
+    setCurrentVideoIndex(schedule.index);
+    setStartSeconds(schedule.startSeconds);
+    setScheduleReady(true);
+    setShowBanner(true);
+  }, [videos]);
 
   // When channel changes, recalculate schedule
   const prevChannelIdRef = useRef(channel.id);
@@ -160,6 +170,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
   const handleReady = useCallback((player: any) => {
     playerRef.current = player;
     setDebugInfo(`ready, state=${player.getPlayerState()}, vid=${player.getVideoData()?.video_id}`);
+    setAutoplay((s) => autoplayTransition(s, { type: "PLAYER_READY" }));
   }, []);
 
   // Channel switching — just state changes, no navigation
@@ -295,38 +306,56 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [channelNumber, switchToChannel, nextChannel, prevChannel]);
 
-  // Track if video is actually playing
-  const [needsStart, setNeedsStart] = useState(false);
+  // Autoplay state machine — always starts muted, unmutes on user interaction
+  const [autoplay, setAutoplay] = useState(getInitialAutoplayState);
 
-  // Check if autoplay was blocked after player is ready
+  // When player is ready, try to unmute after a short delay
   useEffect(() => {
-    if (!playerRef.current) return;
-    const checkInterval = setInterval(() => {
-      const state = playerRef.current?.getPlayerState?.();
-      if (state === 1 || state === 3) {
-        // Playing or buffering — autoplay worked
-        setNeedsStart(false);
-        clearInterval(checkInterval);
-      } else if (state === 5 || state === -1) {
-        // Cued or unstarted — autoplay was blocked
-        setNeedsStart(true);
-      }
-    }, 500);
-    return () => clearInterval(checkInterval);
-  });
+    if (autoplay.state !== "muted" || !autoplay.shouldAttemptUnmute) return;
+    const player = playerRef.current;
+    if (!player) return;
 
-  // Click on video area
+    const timer = setTimeout(() => {
+      try {
+        player.unMute();
+        player.setVolume(100);
+        // Check if unmute stuck — some browsers re-mute immediately
+        setTimeout(() => {
+          if (player.isMuted()) {
+            setAutoplay((s) => autoplayTransition(s, { type: "UNMUTE_ATTEMPT_FAILED" }));
+          } else {
+            setAutoplay((s) => autoplayTransition(s, { type: "UNMUTE_ATTEMPT_SUCCEEDED" }));
+          }
+        }, 200);
+      } catch {
+        setAutoplay((s) => autoplayTransition(s, { type: "UNMUTE_ATTEMPT_FAILED" }));
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [autoplay.state, autoplay.shouldAttemptUnmute]);
+
+  // Click on video area — unmute if muted, otherwise toggle play/pause
   function handleScreenClick() {
     const player = playerRef.current;
-    if (!player?.getPlayerState) return;
 
-    const state = player.getPlayerState();
-    if (state === 5 || state === -1) {
-      // First click starts playback (satisfies browser autoplay policy)
-      player.playVideo();
-      setNeedsStart(false);
+    // Always send user interaction to autoplay state machine
+    if (autoplay.state === "muted") {
+      setAutoplay((s) => autoplayTransition(s, { type: "USER_INTERACTION" }));
+      if (player) {
+        player.unMute();
+        player.setVolume(100);
+        // If player was paused (shouldn't happen with muted autoplay, but just in case)
+        const state = player.getPlayerState?.();
+        if (state !== 1 && state !== 3) {
+          player.playVideo();
+        }
+      }
       return;
     }
+
+    if (!player?.getPlayerState) return;
+    const state = player.getPlayerState();
     if (state === 1) {
       player.pauseVideo();
     } else {
@@ -337,7 +366,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
   return (
     <div className="fixed inset-0 bg-black" onClick={handleScreenClick}>
       {/* Fullscreen video */}
-      {activeVideo && (
+      {scheduleReady && activeVideo && (
         <div className="absolute inset-0">
           <YouTubePlayer
             videoId={activeVideo.youtube_id}
@@ -349,12 +378,16 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
         </div>
       )}
 
-      {/* Click to start overlay — shown when browser blocks autoplay */}
-      {needsStart && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 cursor-pointer">
-          <div className="text-center">
-            <div className="text-6xl mb-4">&#9654;</div>
-            <div className="text-white/70 text-lg">Click to start</div>
+      {/* Muted indicator — tap anywhere to unmute */}
+      {autoplay.showMutedIndicator && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+          <div className="bg-black/70 backdrop-blur-sm rounded-full px-4 py-2 text-white/80 text-sm flex items-center gap-2 animate-pulse">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M11 5L6 9H2v6h4l5 4V5z" />
+              <line x1="23" y1="9" x2="17" y2="15" />
+              <line x1="17" y1="9" x2="23" y2="15" />
+            </svg>
+            Tap to unmute
           </div>
         </div>
       )}
@@ -423,6 +456,12 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
           </div>
         </div>
       )}
+
+      {/* Network bug — frogo logo watermark, bottom-right */}
+      <div className="absolute bottom-4 right-4 z-20 pointer-events-none opacity-40">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/images/frogo/logo.png" alt="frogo.tv" className="h-6" />
+      </div>
 
       {/* On-screen remote — visible when mouse is moving or when clicked open */}
       {(mouseActive || showRemote) && (

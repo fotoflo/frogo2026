@@ -91,6 +91,7 @@ export default function YouTubePlayer({
         videoId: initialVideoId.current,
         playerVars: {
           autoplay: 1,
+          mute: 1,
           modestbranding: 1,
           rel: 0,
           playsinline: 1,
@@ -102,7 +103,13 @@ export default function YouTubePlayer({
         },
         events: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onReady: (e: any) => onReadyRef.current?.(e.target),
+          onReady: (e: any) => {
+            const player = e.target;
+            // Ensure muted autoplay works across all browsers
+            player.mute();
+            player.playVideo();
+            onReadyRef.current?.(player);
+          },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onStateChange: (e: any) => {
             onStateChangeRef.current?.(e.data);
