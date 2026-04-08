@@ -1,0 +1,138 @@
+# FrogoTV Content Agent
+
+Automatically fill all FrogoTV channels to 24 hours of content by spawning parallel subagents per channel.
+
+Use when the user says "fill content", "content agent", "add content", "fill channels", or "run content agent".
+
+## Overview
+
+This agent queries all channels, calculates how many hours each needs to reach 24h, then spawns one subagent per channel to research and add YouTube videos.
+
+## Steps
+
+### 1. Query current content levels
+
+Use Bash to query Supabase REST API for all channels with their total content duration:
+
+```bash
+curl -s 'https://cnnttsihfbyxhzlmzdtv.supabase.co/rest/v1/channels?select=id,slug,name,icon,description' \
+  -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"
+```
+
+Then query video durations grouped by channel:
+
+```bash
+curl -s 'https://cnnttsihfbyxhzlmzdtv.supabase.co/rest/v1/videos?select=channel_id,duration_seconds,position' \
+  -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"
+```
+
+Calculate per channel:
+- `current_hours` = sum of duration_seconds / 3600
+- `hours_needed` = 24 - current_hours
+- `max_position` = max position value (new videos start after this)
+
+Skip channels that already have >= 24 hours.
+
+### 2. Spawn parallel subagents
+
+For EACH channel that needs content, spawn an Agent subagent **in parallel** (all in a single message with multiple Agent tool calls). Each subagent gets this prompt template:
+
+```
+You are a FrogoTV content curator for the "{channel_name}" channel ({channel_icon}).
+Channel description: {channel_description}
+Channel slug: {channel_slug}
+
+GOAL: Find and add approximately {hours_needed} hours of YouTube videos to this channel.
+Current content: {current_hours} hours across {video_count} videos.
+Next position number: {next_position}
+
+## How to find videos
+
+Use WebSearch to find high-quality YouTube videos matching this channel's theme.
+Search queries should be specific to the channel topic. Try 3-5 different search queries to get variety.
+
+Good search examples:
+- "{topic} full lecture youtube"
+- "{topic} documentary youtube"
+- "{topic} explained youtube 2024 2025"
+- "best {topic} youtube videos"
+
+## Video selection criteria
+
+- Prefer videos 10-60 minutes long (longer = fewer needed to fill 24h)
+- Educational, well-produced content from established channels
+- Mix of lengths: some short (5-15 min), mostly medium-long (20-60 min)
+- Avoid: music compilations, ASMR, livestream replays, shorts compilations
+- Avoid: videos that are clearly clickbait or low quality
+- For kids channels: ensure content is age-appropriate
+
+## For each video found, extract:
+
+- youtube_id (the 11-char ID from the URL, e.g. "dQw4w9WgXcQ")
+- title
+- duration_seconds (estimate from the displayed duration, e.g. "1:23:45" = 5025s)
+- brief description (1 sentence)
+
+## Verify video availability
+
+For each video, check availability via YouTube oEmbed:
+```bash
+curl -s -o /dev/null -w "%{http_code}" "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=VIDEO_ID"
+```
+Only include videos that return 200.
+
+## Insert videos into database
+
+Once you have a batch of verified videos, insert them via the Supabase REST API.
+Use this pattern for EACH video (increment position for each):
+
+```bash
+curl -s -X POST 'https://cnnttsihfbyxhzlmzdtv.supabase.co/rest/v1/videos' \
+  -H "apikey: ANON_KEY_HERE" \
+  -H "Authorization: Bearer SERVICE_ROLE_KEY_HERE" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=minimal" \
+  -d '{
+    "channel_id": "{channel_id}",
+    "youtube_id": "VIDEO_ID",
+    "title": "Video Title",
+    "description": "Brief description",
+    "thumbnail_url": "https://img.youtube.com/vi/VIDEO_ID/maxresdefault.jpg",
+    "duration_seconds": 1200,
+    "position": {position}
+  }'
+```
+
+Use these exact keys (read from .env.local in the project root /Users/fotoflo/dev/Frogo2026/.env.local):
+- ANON_KEY = value of NEXT_PUBLIC_SUPABASE_ANON_KEY
+- SERVICE_ROLE_KEY = value of SUPABASE_SERVICE_ROLE_KEY
+
+## Important
+
+- Track cumulative duration as you add videos. Stop when you've added ~{hours_needed} hours.
+- Use ON CONFLICT-safe inserts: add `"on_conflict": "channel_id,youtube_id"` header or just accept 409s gracefully.
+- Number positions sequentially starting from {next_position}.
+- After inserting all videos, report: channel name, videos added, total hours added.
+```
+
+### 3. Collect results
+
+After all subagents complete, summarize:
+- Table of channels with: name, videos added, hours added, new total hours
+- Any channels that had errors
+- Total videos added across all channels
+
+## Environment
+
+Read API keys from `/Users/fotoflo/dev/Frogo2026/.env.local`:
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — used as apikey header
+- `SUPABASE_SERVICE_ROLE_KEY` — used as Authorization Bearer token
+
+## Notes
+
+- The schedule system loops playlists, so 24h of unique content means viewers won't see repeats within a day
+- Videos are verified via oEmbed before insertion to avoid dead links
+- Duplicate youtube_ids per channel are prevented by the DB unique constraint
+- New videos appear immediately — the TV picks them up on next channel load

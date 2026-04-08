@@ -9,6 +9,22 @@ export const contentType = "image/png";
 // Revalidate daily — refreshes the thumbnail from the first video
 export const revalidate = 86400;
 
+/** HEAD-check a thumbnail URL; returns the URL if reachable, null otherwise */
+async function checkImage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") ?? "";
+    if (!ct.startsWith("image/")) return null;
+    // YouTube returns a tiny placeholder (~1KB) for missing maxresdefault
+    const len = parseInt(res.headers.get("content-length") ?? "0", 10);
+    if (len > 0 && len < 2000) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
 export default async function OGImage({
   params,
 }: {
@@ -28,15 +44,49 @@ export default async function OGImage({
     .select("youtube_id, title, thumbnail_url")
     .eq("channel_id", channel?.id ?? "")
     .order("position")
-    .limit(1);
+    .limit(6);
 
   const name = channel?.name ?? slug;
-  const icon = channel?.icon ?? "📺";
+  const description = channel?.description ?? "";
   const firstVideo = videos?.[0];
-  // Use maxresdefault for best quality, fall back to hqdefault
-  const thumbnailUrl = firstVideo
-    ? `https://img.youtube.com/vi/${firstVideo.youtube_id}/maxresdefault.jpg`
+
+  // Build thumbnail URL for the main video
+  const rawThumbUrl = firstVideo
+    ? firstVideo.thumbnail_url ||
+      `https://img.youtube.com/vi/${firstVideo.youtube_id}/maxresdefault.jpg`
     : null;
+
+  // Validate main thumbnail, fall back to hqdefault
+  const thumbnailUrl = rawThumbUrl
+    ? (await checkImage(rawThumbUrl)) ??
+      (await checkImage(
+        `https://img.youtube.com/vi/${firstVideo!.youtube_id}/hqdefault.jpg`
+      ))
+    : null;
+
+  // Validate small thumbnails in parallel, skip any that error
+  const smallThumbs: { youtube_id: string; url: string }[] = [];
+  if (videos && videos.length > 1) {
+    const checks = await Promise.all(
+      videos.slice(1, 6).map(async (v) => {
+        const url =
+          v.thumbnail_url ||
+          `https://img.youtube.com/vi/${v.youtube_id}/maxresdefault.jpg`;
+        const valid =
+          (await checkImage(url)) ??
+          (await checkImage(
+            `https://img.youtube.com/vi/${v.youtube_id}/hqdefault.jpg`
+          ));
+        return valid ? { youtube_id: v.youtube_id, url: valid } : null;
+      })
+    );
+    for (const t of checks) {
+      if (t && smallThumbs.length < 3) smallThumbs.push(t);
+    }
+  }
+
+  // Frogo logo — the horizontal version with mascot + "frogo" text
+  const logoUrl = "https://frogo.tv/images/frogo/logo.png";
 
   return new ImageResponse(
     (
@@ -45,13 +95,12 @@ export default async function OGImage({
           width: "100%",
           height: "100%",
           display: "flex",
-          flexDirection: "column",
           position: "relative",
           overflow: "hidden",
-          background: "#0d0d15",
+          background: "#0a0a12",
         }}
       >
-        {/* Video thumbnail as full background */}
+        {/* === Full-bleed thumbnail === */}
         {thumbnailUrl && (
           <img
             src={thumbnailUrl}
@@ -67,7 +116,7 @@ export default async function OGImage({
           />
         )}
 
-        {/* Dark gradient overlay — heavier at bottom for text readability */}
+        {/* === Dark gradient — heavier at bottom for text === */}
         <div
           style={{
             position: "absolute",
@@ -77,65 +126,36 @@ export default async function OGImage({
             height: "100%",
             display: "flex",
             background: thumbnailUrl
-              ? "linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.15) 40%, rgba(0,0,0,0.7) 75%, rgba(0,0,0,0.9) 100%)"
-              : "linear-gradient(135deg, #0d0d15 0%, #1a1a2e 40%, #0d0d15 100%)",
+              ? "linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.15) 40%, rgba(0,0,0,0.75) 80%, rgba(0,0,0,0.92) 100%)"
+              : "linear-gradient(135deg, #0d0d15 0%, #1a1a2e 50%, #0d0d15 100%)",
           }}
         />
 
-        {/* Top-left: frogo.tv branding */}
+        {/* === Play button — centered on thumbnail === */}
         <div
           style={{
             position: "absolute",
-            top: "36px",
-            left: "44px",
+            top: "40%",
+            left: "50%",
+            marginTop: "-40px",
+            marginLeft: "-40px",
+            width: "80px",
+            height: "80px",
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.9)",
             display: "flex",
             alignItems: "center",
-            gap: "8px",
+            justifyContent: "center",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+            fontSize: "36px",
+            color: "#0a0a12",
+            paddingLeft: "6px",
           }}
         >
-          <div style={{ fontSize: "26px", color: "rgba(255,255,255,0.7)", fontWeight: 600 }}>
-            frogo
-          </div>
-          <div style={{ fontSize: "26px", color: "#7c5cfc", fontWeight: 600 }}>
-            .tv
-          </div>
+          ▶
         </div>
 
-        {/* Top-right: ON AIR badge */}
-        <div
-          style={{
-            position: "absolute",
-            top: "36px",
-            right: "44px",
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            background: "rgba(0,0,0,0.5)",
-            borderRadius: "8px",
-            padding: "8px 16px",
-          }}
-        >
-          <div
-            style={{
-              width: "10px",
-              height: "10px",
-              borderRadius: "50%",
-              background: "#ef4444",
-            }}
-          />
-          <div
-            style={{
-              fontSize: "18px",
-              color: "#ef4444",
-              fontWeight: 700,
-              letterSpacing: "0.12em",
-            }}
-          >
-            ON AIR
-          </div>
-        </div>
-
-        {/* Bottom: channel info bar */}
+        {/* === Bottom bar: logo + channel name === */}
         <div
           style={{
             position: "absolute",
@@ -143,41 +163,50 @@ export default async function OGImage({
             left: 0,
             right: 0,
             display: "flex",
-            alignItems: "flex-end",
-            padding: "0 44px 40px 44px",
+            alignItems: "center",
+            padding: "0 48px 40px 48px",
+            gap: "24px",
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-            {/* Channel */}
-            <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "8px" }}>
-              <span style={{ fontSize: "56px" }}>{icon}</span>
-              <div
-                style={{
-                  fontSize: "52px",
-                  fontWeight: 800,
-                  color: "#ffffff",
-                  lineHeight: 1.1,
-                  textShadow: "0 2px 12px rgba(0,0,0,0.5)",
-                }}
-              >
-                {name}
-              </div>
-            </div>
-            {/* Now playing label */}
-            {firstVideo && (
-              <div
-                style={{
-                  fontSize: "22px",
-                  color: "rgba(255,255,255,0.6)",
-                  textShadow: "0 1px 8px rgba(0,0,0,0.5)",
-                  marginLeft: "4px",
-                }}
-              >
-                Now playing: {firstVideo.title.length > 60 ? firstVideo.title.slice(0, 60) + "..." : firstVideo.title}
-              </div>
-            )}
+          {/* Frogo logo */}
+          <img
+            src={logoUrl}
+            alt="frogo.tv"
+            style={{
+              height: "120px",
+              objectFit: "contain",
+              flexShrink: 0,
+            }}
+          />
+
+          {/* Channel name */}
+          <div
+            style={{
+              fontSize: "56px",
+              fontWeight: 800,
+              color: "#ffffff",
+              lineHeight: 1.1,
+              letterSpacing: "-0.02em",
+              textShadow: "0 2px 16px rgba(0,0,0,0.6)",
+            }}
+          >
+            {name}
           </div>
         </div>
+
+        {/* === Accent line === */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: "4px",
+            display: "flex",
+            background:
+              "linear-gradient(90deg, #7c5cfc 0%, #a78bfa 50%, #7c5cfc 100%)",
+          }}
+        />
       </div>
     ),
     { ...size }
