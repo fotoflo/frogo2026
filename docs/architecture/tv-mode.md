@@ -114,7 +114,7 @@ When Classic HUD is active, the minimal remote and broadcast lower-third are hid
 A collapsible 3-panel overlay inspired by the original frogo.tv interface. It has three display states managed by `HUDState`: `"expanded"`, `"collapsed"`, and `"minimized"`.
 
 **Panels:**
-- **Top Panel** (always visible when not minimized): Frogo logo, current channel number/icon/name, Browse/Close toggle button
+- **Top Panel** (always visible when not minimized): Frogo logo, current channel number/icon/name, optional QR restore button (when QR was dismissed and phone is unpaired), Browse/Close toggle button
 - **Middle Content** (expanded only): Left sidebar with channel categories (derived from channel icons) and a right grid of channel tiles with thumbnails. Clicking a tile calls `onSwitchChannel(slug)`
 - **Playlist Strip** (collapsed/minimized only): Horizontal scrollable row of video thumbnails for the current channel. Active video marked with "NOW" badge. Clicking a thumbnail calls `onJumpToVideo(index)`
 - **Bottom Panel** (always visible): Interactive scrub bar, now-playing info (thumbnail + title + channel), time display, and playback controls (prev/play/next video, prev/next channel, fullscreen)
@@ -139,10 +139,18 @@ The playlist strip probes YouTube thumbnails on load. If a thumbnail is 120x90px
 - `chromeVisible = mouseActive || showBanner`
 
 ### MiniQR (`src/components/MiniQR.tsx`)
-- Shown only when unpaired (`!paired && pairingCode && sessionId`)
+- Shown only when unpaired (`!paired && pairingCode && sessionId && showQR && !qrDismissed`)
 - Hides 10 seconds after chrome goes away (`qrHidden` state + timeout)
 - Reappears when chrome becomes visible again
 - On pairing, replaced by a small green pulse dot
+
+#### QR Dismiss / Restore
+
+Users can dismiss the QR overlay and bring it back later:
+
+- **Dismiss**: Clicking the QR card sets `qrDismissed=true`. A hover state shows an X icon over the QR via a `group-hover` overlay.
+- **Restore**: When `qrDismissed` is true and the phone is still unpaired, a QR icon button appears in the Classic HUD top bar (`showQRButton` prop). Clicking it sets `qrDismissed=false`, restoring the QR overlay.
+- The `qrDismissed` state is independent of the `qrHidden` auto-fade timer -- both must be false for the QR to show.
 
 ### OnScreenRemote (`src/components/OnScreenRemote.tsx`)
 Two states controlled by `expanded` prop:
@@ -176,37 +184,7 @@ YouTube videos can become unavailable (private, deleted, region-locked). To avoi
 
 ## OG Image Generation
 
-`src/app/watch/[slug]/opengraph-image.tsx` produces a 1200x630 PNG for each channel using Next.js `next/og` (file-based metadata convention). This image appears when channel URLs are shared on social platforms.
-
-### Layout
-- Full-bleed video thumbnail as background
-- Dark gradient overlay (heavier at bottom for readability)
-- Centered play button (white circle with triangle)
-- Bottom bar: Frogo logo (120px) + channel name (56px bold white)
-- 4px purple accent line at the very bottom
-
-### Thumbnail Validation
-The `checkImage()` helper validates thumbnails via HTTP HEAD before rendering:
-1. Tries `maxresdefault.jpg` first (highest quality YouTube thumbnail)
-2. Falls back to `hqdefault.jpg` if maxres fails
-3. Rejects responses that are not `image/*` content-type
-4. Rejects tiny responses (<2KB) -- YouTube returns small placeholder images for missing thumbnails
-5. 3-second timeout per request
-
-Up to 3 additional video thumbnails are validated in parallel from positions 2-6 in the playlist (currently fetched but not rendered in the layout -- reserved for future use).
-
-### Data Flow
-1. Fetches channel by slug from Supabase (service client)
-2. Fetches first 6 videos ordered by position
-3. Validates thumbnail URLs via HEAD requests
-4. Renders JSX-to-PNG via `ImageResponse`
-5. Revalidates daily (`revalidate = 86400`)
-
-### Important Patterns
-- Uses `runtime = "nodejs"` (not Edge) for full Node.js fetch support
-- Service client (`createServiceClient()`) for server-side Supabase access
-- `AbortSignal.timeout(3000)` prevents slow thumbnail checks from blocking image generation
-- Async `params` (Next.js 15+ pattern): `params: Promise<{ slug: string }>`
+`src/app/watch/[slug]/opengraph-image.tsx` produces a 1200x630 JPEG for each channel using Next.js `next/og` (file-based metadata convention). This image appears when channel URLs are shared on social platforms. See `docs/architecture/og-images.md` for the full caching and compression pipeline.
 
 ## Dev Server
 

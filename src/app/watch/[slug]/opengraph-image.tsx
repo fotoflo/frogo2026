@@ -1,10 +1,11 @@
 import { ImageResponse } from "next/og";
 import { createServiceClient } from "@/lib/supabase";
+import sharp from "sharp";
 
 export const runtime = "nodejs";
 export const alt = "Frogo.tv Channel";
 export const size = { width: 1200, height: 630 };
-export const contentType = "image/png";
+export const contentType = "image/jpeg";
 
 // Check often — the cache logic below handles staleness via first-video-id
 export const revalidate = 300;
@@ -24,6 +25,13 @@ async function checkImage(url: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/** Compress to JPEG — reduces 300KB+ PNG to ~75KB */
+async function compressToJpeg(input: Buffer): Promise<Buffer> {
+  return sharp(input)
+    .jpeg({ quality: 80, mozjpeg: true })
+    .toBuffer();
 }
 
 export default async function OGImage({
@@ -51,7 +59,7 @@ export default async function OGImage({
   const firstVideo = videos?.[0];
 
   // Cache key: slug + first video id — changes when playlist order changes
-  const cacheKey = `${slug}/${firstVideo?.id ?? "empty"}.png`;
+  const cacheKey = `${slug}/${firstVideo?.id ?? "empty"}.jpg`;
 
   // Check if we have a cached version in Supabase Storage
   const { data: existing } = await supabase.storage
@@ -59,26 +67,18 @@ export default async function OGImage({
     .createSignedUrl(cacheKey, 60);
 
   if (existing?.signedUrl) {
-    // Verify the file actually exists by HEADing it
     try {
-      const check = await fetch(existing.signedUrl, {
-        method: "HEAD",
-        signal: AbortSignal.timeout(2000),
+      const cached = await fetch(existing.signedUrl, {
+        signal: AbortSignal.timeout(4000),
       });
-      if (check.ok) {
-        // Serve cached image — fetch and return as response
-        const cached = await fetch(existing.signedUrl, {
-          signal: AbortSignal.timeout(5000),
+      if (cached.ok) {
+        const buf = await cached.arrayBuffer();
+        return new Response(buf, {
+          headers: {
+            "Content-Type": "image/jpeg",
+            "Cache-Control": "public, max-age=86400, s-maxage=86400",
+          },
         });
-        if (cached.ok) {
-          const buf = await cached.arrayBuffer();
-          return new Response(buf, {
-            headers: {
-              "Content-Type": "image/png",
-              "Cache-Control": "public, max-age=86400, s-maxage=86400",
-            },
-          });
-        }
       }
     } catch {
       // Cache miss or error — fall through to generate
@@ -217,24 +217,24 @@ export default async function OGImage({
     { ...size }
   );
 
-  // Upload to Supabase Storage in the background (don't block response)
-  const arrayBuffer = await imageResponse.arrayBuffer();
-  const pngBuffer = Buffer.from(arrayBuffer);
+  // Compress the PNG with sharp before caching
+  const rawBuffer = Buffer.from(await imageResponse.arrayBuffer());
+  const compressed = await compressToJpeg(rawBuffer);
 
-  // Upload (fire-and-forget — don't slow down the response)
+  // Upload compressed version to Supabase Storage (fire-and-forget)
   supabase.storage
     .from(BUCKET)
-    .upload(cacheKey, pngBuffer, {
-      contentType: "image/png",
+    .upload(cacheKey, new Uint8Array(compressed), {
+      contentType: "image/jpeg",
       upsert: true,
     })
     .then((r) => {
       if (r.error) console.error("OG cache upload failed:", r.error.message);
     });
 
-  return new Response(pngBuffer, {
+  return new Response(new Uint8Array(compressed), {
     headers: {
-      "Content-Type": "image/png",
+      "Content-Type": "image/jpeg",
       "Cache-Control": "public, max-age=86400, s-maxage=86400",
     },
   });

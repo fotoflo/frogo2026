@@ -36,6 +36,8 @@ interface ClassicHUDProps {
   onPrevVideo: () => void;
   onTogglePlay: () => void;
   onJumpToVideo: (index: number) => void;
+  showQRButton?: boolean;
+  onShowQR?: () => void;
 }
 
 type HUDState = "expanded" | "collapsed" | "minimized";
@@ -60,6 +62,8 @@ export default function ClassicHUD({
   onPrevVideo,
   onTogglePlay,
   onJumpToVideo,
+  showQRButton,
+  onShowQR,
 }: ClassicHUDProps) {
   const [hudState, setHUDState] = useState<HUDState>("minimized");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -182,7 +186,18 @@ export default function ClassicHUD({
             {channel.icon} {channel.name}
           </span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
+          {showQRButton && onShowQR && (
+            <button
+              onClick={onShowQR}
+              className="hud-ctrl-btn"
+              title="Show pairing QR code"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 11h2V9H3v2zm0-4h2V3h4V1H3v6zm8-6v2h4V1h-4zm4 18h4v-2h-2v-2h-2v4zm-4 0h2v-4h-2v4zm-8-4h2v-2H3v2zm0-4h2v-2H3v2zm16-4V3h-4v2h2v2h2zm0 4h2V7h-2v4zm0 4h2v-2h-2v2zM7 13h4v-2H7v2zm-4 6h4v-4H3v4zm2-2v-2h2v2H5zM3 3v4h4V3H3zm2 2v2H5V5h2zm14 0v4h-4V3h4zm-2 2v2h-2V5h2zm-4 8h-2v2h2v2h2v-2h-2v-2zm-4 0H7v4h4v-2H9v-2z"/>
+              </svg>
+            </button>
+          )}
           <button
             onClick={toggleHUD}
             className="text-xs text-white/40 hover:text-white/80 transition-colors px-2 py-1"

@@ -51,6 +51,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
   const [showRemote, setShowRemote] = useState(false);
   const [mouseActive, setMouseActive] = useState(false);
   const [hudHovered, setHudHovered] = useState(false);
+  const [qrDismissed, setQrDismissed] = useState(false);
   const mouseTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   // Channel number input
@@ -398,10 +399,22 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
       )}
 
 
-      {/* Mini QR code — top right, only when unpaired */}
-      {!paired && pairingCode && sessionId && showQR && (
-        <div className="absolute top-4 right-4 z-50 pointer-events-none">
-          <MiniQR code={pairingCode} />
+      {/* Mini QR code — top right, only when unpaired and not dismissed */}
+      {!paired && pairingCode && sessionId && showQR && !qrDismissed && (
+        <div className="absolute top-4 right-4 z-50">
+          <div
+            className="relative cursor-pointer group"
+            onClick={(e) => { e.stopPropagation(); setQrDismissed(true); }}
+            title="Click to dismiss"
+          >
+            <MiniQR code={pairingCode} />
+            {/* X overlay — appears on hover, visually inside the QR card */}
+            <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/50 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100">
+              <svg width="14" height="14" viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round">
+                <path d="M2 2l6 6M8 2l-6 6" />
+              </svg>
+            </div>
+          </div>
         </div>
       )}
 
@@ -535,6 +548,8 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
                 setCurrentVideoIndex(index);
                 setStartSeconds(0);
               }}
+              showQRButton={!paired && !!pairingCode && qrDismissed}
+              onShowQR={() => setQrDismissed(false)}
             />
           </div>
         </div>
