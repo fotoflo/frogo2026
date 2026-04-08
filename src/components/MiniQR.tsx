@@ -11,34 +11,35 @@ export default function MiniQR({ code }: MiniQRProps) {
   const [pairUrl, setPairUrl] = useState("");
 
   useEffect(() => {
-    // Use the network-accessible URL so phones on the same WiFi can reach it.
-    // Check for tunnel URL first, then try network IP, fallback to origin.
+    const origin = window.location.origin;
+    const isLocal = origin.includes("localhost") || origin.includes("127.0.0.1");
+
+    if (!isLocal) {
+      // Production / public URL — use it directly
+      setPairUrl(`${origin}/pair?code=${code}`);
+      return;
+    }
+
+    // Local dev: check for ngrok tunnel, then network IP, then fallback
     fetch("/api/tunnel-url")
       .then((r) => r.json())
       .then((data) => {
         if (data.url) {
           setPairUrl(`${data.url}/pair?code=${code}`);
         } else {
-          // Use hostname — if accessed via localhost, swap to network IP
-          const origin = window.location.origin;
-          if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
-            // Fetch the network IP from the server
-            fetch("/api/network-ip")
-              .then((r) => r.json())
-              .then((d) => {
-                if (d.ip) {
-                  setPairUrl(`http://${d.ip}:${window.location.port}/pair?code=${code}`);
-                } else {
-                  setPairUrl(`${origin}/pair?code=${code}`);
-                }
-              });
-          } else {
-            setPairUrl(`${origin}/pair?code=${code}`);
-          }
+          fetch("/api/network-ip")
+            .then((r) => r.json())
+            .then((d) => {
+              if (d.ip) {
+                setPairUrl(`http://${d.ip}:${window.location.port}/pair?code=${code}`);
+              } else {
+                setPairUrl(`${origin}/pair?code=${code}`);
+              }
+            });
         }
       })
       .catch(() => {
-        setPairUrl(`${window.location.origin}/pair?code=${code}`);
+        setPairUrl(`${origin}/pair?code=${code}`);
       });
   }, [code]);
 

@@ -163,13 +163,9 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
     setStartSeconds(0);
   }, [videos.length]);
 
-  // DEBUG: track player state
-  const [debugInfo, setDebugInfo] = useState("");
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleReady = useCallback((player: any) => {
     playerRef.current = player;
-    setDebugInfo(`ready, state=${player.getPlayerState()}, vid=${player.getVideoData()?.video_id}`);
     setAutoplay((s) => autoplayTransition(s, { type: "PLAYER_READY" }));
   }, []);
 
@@ -392,19 +388,6 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
         </div>
       )}
 
-      {/* DEBUG overlay — click to copy */}
-      {debugInfo && (
-        <div
-          className="absolute top-20 left-4 z-50 bg-red-900/80 text-white text-xs font-mono px-3 py-2 rounded cursor-pointer"
-          onClick={(e) => {
-            e.stopPropagation();
-            const text = `${debugInfo} | vid=${activeVideo?.youtube_id} | ch=${channel.name}`;
-            navigator.clipboard.writeText(text);
-          }}
-        >
-          {debugInfo} | vid={activeVideo?.youtube_id} | ch={channel.name}
-        </div>
-      )}
 
       {/* Mini QR code — top right, only when unpaired */}
       {!paired && pairingCode && sessionId && showQR && (
@@ -427,16 +410,11 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
         </div>
       )}
 
-      {/* Channel banner — shows briefly */}
+      {/* Network bug — frogo logo, top-left */}
       {showBanner && (
-        <div className="absolute top-6 left-6 z-40 pointer-events-none animate-fade-up">
-          <div className="bg-black/70 backdrop-blur-sm rounded-lg px-4 py-2 text-white">
-            <span className="text-accent font-mono mr-2">{channelIdx + 1}</span>
-            <span className="text-lg">{channel.icon} {channel.name}</span>
-            {activeVideo && (
-              <div className="text-sm text-white/60 mt-0.5">{activeVideo.title}</div>
-            )}
-          </div>
+        <div className="absolute top-4 left-4 z-40 pointer-events-none">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/frogo/logo.png" alt="frogo.tv" className="h-8 opacity-60" />
         </div>
       )}
 
@@ -449,7 +427,15 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
               <span className="text-xl">{channel.icon}</span>
               <span className="font-semibold">{channel.name}</span>
             </div>
-            <div className="text-sm text-white/80 line-clamp-1">{activeVideo.title}</div>
+            <a
+              href={`https://www.youtube.com/watch?v=${activeVideo.youtube_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-white/80 line-clamp-1 hover:text-white hover:underline pointer-events-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {activeVideo.title}
+            </a>
             {activeVideo.description && (
               <div className="text-xs text-white/40 mt-0.5 line-clamp-1">{activeVideo.description}</div>
             )}

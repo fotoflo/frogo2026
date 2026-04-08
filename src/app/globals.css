@@ -41,3 +41,70 @@ body {
 .delay-3 { animation-delay: 0.3s; }
 .delay-4 { animation-delay: 0.4s; }
 .delay-5 { animation-delay: 0.5s; }
+
+/* Remote control styles */
+@keyframes remote-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(124, 92, 252, 0.15); }
+  50% { box-shadow: 0 0 30px rgba(124, 92, 252, 0.25); }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.6; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.remote-body {
+  background: linear-gradient(170deg, #1a1a2e 0%, #0d0d15 40%, #0a0a12 100%);
+}
+
+.remote-btn {
+  background: linear-gradient(145deg, #1e1e30, #16162a);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  transition: all 0.12s ease;
+}
+
+.remote-btn:active {
+  background: linear-gradient(145deg, #252540, #1e1e35);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 0 12px rgba(124, 92, 252, 0.2) inset;
+  transform: scale(0.97);
+}
+
+.rocker-btn {
+  background: linear-gradient(180deg, #1c1c32 0%, #14142a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  transition: all 0.1s ease;
+}
+
+.rocker-btn:active {
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.3),
+    0 0 16px rgba(124, 92, 252, 0.25) inset;
+  transform: scale(0.98);
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out both;
+}
+
+.remote-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+}

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 
 interface SearchResultChannel {
@@ -32,6 +33,7 @@ function PairContent() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const [log, setLog] = useState<string[]>([]);
   function addLog(msg: string) {
@@ -81,7 +83,7 @@ function PairContent() {
   function showToast(msg: string) {
     setToast(msg);
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    toastTimeoutRef.current = setTimeout(() => setToast(null), 2000);
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 1500);
   }
 
   // Send a command
@@ -94,7 +96,7 @@ function PairContent() {
         last_command_at: new Date().toISOString(),
       })
       .eq("id", sessionId);
-    showToast(error ? `ERR: ${error.message}` : `sent: ${command}`);
+    showToast(error ? `ERR: ${error.message}` : command);
   }
 
   // Search videos
@@ -142,72 +144,157 @@ function PairContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only once on mount
 
-  // Pairing screen
+  // Handle individual digit inputs
+  function handleDigitChange(index: number, value: string) {
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const newCode = code.split("");
+    newCode[index] = digit;
+    const joined = newCode.join("").replace(/undefined/g, "");
+    setCode(joined);
+    if (digit && index < 3) {
+      inputRefs.current[index + 1]?.focus();
+    }
+    if (joined.length === 4) {
+      doPair(joined);
+    }
+  }
+
+  function handleDigitKeyDown(index: number, e: React.KeyboardEvent) {
+    if (e.key === "Backspace" && !code[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  }
+
+  // ─── Pairing Screen ───
   if (!paired) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center px-6">
-        <div className="w-full max-w-sm text-center">
-          <div className="text-5xl mb-6">📱</div>
-          <h1 className="text-2xl font-bold text-white mb-2">Pair as Remote</h1>
-          <p className="text-sm text-white/50 mb-8">
-            Enter the code shown on your TV
-          </p>
+      <div className="min-h-screen remote-body remote-noise flex flex-col items-center justify-center px-6 relative overflow-hidden">
+        {/* Ambient glow */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-64 h-64 rounded-full bg-accent/8 blur-[100px] pointer-events-none" />
 
-          <input
-            type="text"
-            inputMode="numeric"
-            maxLength={4}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-            className="w-full text-center text-4xl font-mono font-bold tracking-[0.4em] bg-zinc-900 border border-white/10 rounded-xl px-4 py-6 text-white focus:outline-none focus:border-accent"
-            placeholder="0000"
-            autoFocus
-          />
+        <div className="w-full max-w-sm text-center relative z-10">
+          {/* Logo */}
+          <div className="animate-slide-up mb-8">
+            <Image
+              src="/images/frogo/frogo-logo-200.png"
+              alt="Frogo"
+              width={80}
+              height={80}
+              className="mx-auto drop-shadow-[0_0_20px_rgba(124,92,252,0.3)]"
+            />
+            <h1 className="text-lg font-medium text-white/70 mt-3 tracking-wide">
+              frogo<span className="text-accent">.tv</span>
+            </h1>
+            <p className="text-xs text-white/30 mt-1">Phone Remote</p>
+          </div>
 
-          {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
-          <p className="text-white/30 text-xs mt-2">{status}</p>
-          {log.length > 0 && (
-            <div className="mt-4 text-left bg-zinc-900 rounded-lg p-3 max-h-40 overflow-y-auto">
-              {log.map((l, i) => (
-                <div key={i} className="text-[10px] text-green-400 font-mono">{l}</div>
+          {/* Code entry */}
+          <div className="animate-slide-up" style={{ animationDelay: "0.1s" }}>
+            <p className="text-sm text-white/40 mb-4">
+              Enter the code on your TV
+            </p>
+
+            <div className="flex gap-3 justify-center mb-4">
+              {[0, 1, 2, 3].map((i) => (
+                <input
+                  key={i}
+                  suppressHydrationWarning
+                  ref={(el) => { inputRefs.current[i] = el; }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={code[i] ?? ""}
+                  onChange={(e) => handleDigitChange(i, e.target.value)}
+                  onKeyDown={(e) => handleDigitKeyDown(i, e)}
+                  className="w-16 h-20 text-center text-3xl font-mono font-bold bg-[#12122a] border-2 border-white/8 rounded-xl text-white focus:outline-none focus:border-accent/60 focus:shadow-[0_0_20px_rgba(124,92,252,0.15)] transition-all"
+                  autoFocus={i === 0}
+                />
               ))}
             </div>
-          )}
 
-          <button
-            onClick={() => doPair(code)}
-            onTouchEnd={(e) => { e.preventDefault(); doPair(code); }}
-            disabled={code.length !== 4 || loading}
-            className="w-full mt-6 rounded-xl bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium py-4 text-lg transition-colors touch-manipulation"
-          >
-            {loading ? "Connecting..." : "Connect"}
-          </button>
+            {error && (
+              <p className="text-red-400/80 text-sm mt-3 animate-slide-up">{error}</p>
+            )}
+          </div>
+
+          {/* Connect button */}
+          <div className="animate-slide-up" style={{ animationDelay: "0.2s" }}>
+            <button
+              onClick={() => doPair(code)}
+              onTouchEnd={(e) => { e.preventDefault(); doPair(code); }}
+              disabled={code.length !== 4 || loading}
+              className="w-full mt-4 rounded-xl bg-accent/90 hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed text-white font-medium py-4 text-base transition-all active:scale-[0.98] touch-manipulation shadow-[0_4px_20px_rgba(124,92,252,0.25)]"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Connecting...
+                </span>
+              ) : (
+                "Connect"
+              )}
+            </button>
+          </div>
+
+          {/* Status text */}
+          <p className="text-white/20 text-xs mt-4">{status}</p>
+
+          {/* Debug log (collapsed by default) */}
+          {log.length > 0 && (
+            <details className="mt-4 text-left">
+              <summary className="text-[10px] text-white/20 cursor-pointer hover:text-white/40">
+                Debug log
+              </summary>
+              <div className="mt-2 bg-black/40 rounded-lg p-3 max-h-32 overflow-y-auto border border-white/5">
+                {log.map((l, i) => (
+                  <div key={i} className="text-[10px] text-green-400/70 font-mono">{l}</div>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       </div>
     );
   }
 
-  // Remote control
+  // ─── Remote Control ───
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col relative">
-      {/* Debug toast */}
+    <div className="min-h-screen remote-body remote-noise text-white flex flex-col relative overflow-hidden">
+      {/* Subtle scan line effect */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.02]">
+        <div className="w-full h-px bg-white" style={{ animation: "scan-line 8s linear infinite" }} />
+      </div>
+
+      {/* Toast */}
       {toast && (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 bg-zinc-800 border border-white/10 text-white text-xs font-mono px-3 py-1.5 rounded-lg shadow-lg">
-          {toast}
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
+          <div className="bg-accent/20 backdrop-blur-md border border-accent/30 text-accent text-xs font-mono px-4 py-2 rounded-full shadow-lg">
+            {toast}
+          </div>
         </div>
       )}
-      {/* Status bar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-sm text-white/60">
-            Connected{connected ? " - live" : ""}
-          </span>
-        </div>
+
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 relative z-10">
         <div className="flex items-center gap-3">
+          <Image
+            src="/images/frogo/frogo-logo-200.png"
+            alt="Frogo"
+            width={28}
+            height={28}
+            className="opacity-80"
+          />
+          <div className="flex items-center gap-2">
+            <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-green-400" : "bg-yellow-500"} animate-pulse`} />
+            <span className="text-xs text-white/40">
+              {connected ? "Live" : "Connecting"}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSearch(!showSearch)}
-            className="text-sm text-accent"
+            className="px-3 py-1.5 rounded-lg text-xs text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
           >
             {showSearch ? "Close" : "Search"}
           </button>
@@ -220,7 +307,7 @@ function PairContent() {
               setStatus("Ready");
               setLog([]);
             }}
-            className="text-sm text-red-400"
+            className="px-3 py-1.5 rounded-lg text-xs text-red-400/60 hover:text-red-400 hover:bg-red-400/5 transition-all"
           >
             Unpair
           </button>
@@ -229,17 +316,19 @@ function PairContent() {
 
       {/* Search panel */}
       {showSearch && (
-        <div className="px-4 py-3 border-b border-white/10">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search videos..."
-            className="w-full bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-accent"
-            autoFocus
-          />
+        <div className="px-5 pb-3 animate-slide-up relative z-10">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search videos..."
+              className="w-full bg-white/5 border border-white/8 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-accent/40 transition-all"
+              autoFocus
+            />
+          </div>
           {searchResults.length > 0 && (
-            <div className="mt-2 max-h-60 overflow-y-auto space-y-1">
+            <div className="mt-2 max-h-52 overflow-y-auto space-y-0.5 rounded-xl bg-black/40 border border-white/5 p-1">
               {searchResults.map((v: SearchResult) => (
                 <button
                   key={v.id}
@@ -249,11 +338,11 @@ function PairContent() {
                     setShowSearch(false);
                     setSearchQuery("");
                   }}
-                  className="w-full text-left flex gap-2 p-2 rounded-lg hover:bg-white/5 transition-colors"
+                  className="w-full text-left flex gap-3 p-3 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium truncate">{v.title}</div>
-                    <div className="text-[10px] text-white/40">
+                    <div className="text-xs font-medium truncate text-white/80">{v.title}</div>
+                    <div className="text-[10px] text-white/30 mt-0.5">
                       {v.channels?.icon} {v.channels?.name}
                     </div>
                   </div>
@@ -264,35 +353,57 @@ function PairContent() {
         </div>
       )}
 
-      {/* Channel Up/Down */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
+      {/* Channel Rocker */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8 relative z-10">
+        {/* Ambient glow behind rocker */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-accent/5 blur-[80px] pointer-events-none" />
+
         <button
           onClick={() => sendCommand("prev")}
-          className="w-full max-w-xs py-12 rounded-2xl bg-zinc-900 border border-white/10 active:bg-white/10 transition-colors flex flex-col items-center"
+          onTouchEnd={(e) => { e.preventDefault(); sendCommand("prev"); }}
+          className="rocker-btn w-full max-w-[280px] py-10 rounded-t-[28px] rounded-b-xl flex flex-col items-center gap-1 touch-manipulation"
         >
-          <span className="text-3xl">▲</span>
-          <span className="text-sm text-white/40 mt-1">CH+</span>
+          <svg width="28" height="16" viewBox="0 0 28 16" fill="none" className="text-white/60">
+            <path d="M14 2L26 14H2L14 2Z" fill="currentColor" />
+          </svg>
+          <span className="text-[11px] font-medium text-white/30 tracking-widest uppercase mt-1">CH +</span>
         </button>
+
+        {/* Center divider with label */}
+        <div className="w-full max-w-[280px] flex items-center gap-4 py-1">
+          <div className="flex-1 h-px bg-white/5" />
+          <span className="text-[10px] text-white/20 font-mono tracking-wider">CHANNEL</span>
+          <div className="flex-1 h-px bg-white/5" />
+        </div>
 
         <button
           onClick={() => sendCommand("next")}
-          className="w-full max-w-xs py-12 rounded-2xl bg-zinc-900 border border-white/10 active:bg-white/10 transition-colors flex flex-col items-center"
+          onTouchEnd={(e) => { e.preventDefault(); sendCommand("next"); }}
+          className="rocker-btn w-full max-w-[280px] py-10 rounded-b-[28px] rounded-t-xl flex flex-col items-center gap-1 touch-manipulation"
         >
-          <span className="text-3xl">▼</span>
-          <span className="text-sm text-white/40 mt-1">CH-</span>
+          <span className="text-[11px] font-medium text-white/30 tracking-widest uppercase mb-1">CH -</span>
+          <svg width="28" height="16" viewBox="0 0 28 16" fill="none" className="text-white/60">
+            <path d="M14 14L2 2H26L14 14Z" fill="currentColor" />
+          </svg>
         </button>
       </div>
 
-      {/* Number pad */}
-      <div className="px-6 pb-6">
-        <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
+      {/* Number Pad */}
+      <div className="px-6 pb-8 pt-4 relative z-10">
+        <div className="flex items-center gap-4 mb-4 px-2">
+          <div className="flex-1 h-px bg-white/5" />
+          <span className="text-[10px] text-white/15 font-mono tracking-wider">DIRECT TUNE</span>
+          <div className="flex-1 h-px bg-white/5" />
+        </div>
+        <div className="grid grid-cols-3 gap-2.5 max-w-[280px] mx-auto">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
             <button
               key={n}
               onClick={() => sendCommand(`channel_${n}`)}
-              className="py-4 rounded-xl bg-zinc-900 border border-white/10 text-xl font-mono active:bg-white/10 transition-colors"
+              onTouchEnd={(e) => { e.preventDefault(); sendCommand(`channel_${n}`); }}
+              className="remote-btn py-5 rounded-2xl text-xl font-mono text-white/70 touch-manipulation relative overflow-hidden group"
             >
-              {n}
+              <span className="relative z-10">{n}</span>
             </button>
           ))}
         </div>
@@ -305,8 +416,14 @@ export default function PairPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center min-h-screen bg-black text-white/50">
-          Loading...
+        <div className="flex items-center justify-center min-h-screen remote-body text-white/30">
+          <Image
+            src="/images/frogo/frogo-logo-200.png"
+            alt="Loading"
+            width={48}
+            height={48}
+            className="opacity-30 animate-pulse"
+          />
         </div>
       }
     >

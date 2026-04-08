@@ -1,7 +1,34 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = createServiceClient();
+  const { data: channel } = await supabase
+    .from("channels")
+    .select("name, icon, description")
+    .eq("slug", slug)
+    .single();
+
+  if (!channel) return {};
+
+  const title = `${channel.icon} ${channel.name} — Frogo.tv`;
+  const description = channel.description || `${channel.name} channel on Frogo.tv`;
+
+  return {
+    title,
+    description,
+    openGraph: { title, description, siteName: "Frogo.tv" },
+    twitter: { card: "summary_large_image", title, description },
+  };
+}
 
 async function getChannel(slug: string) {
   const supabase = createServiceClient();
