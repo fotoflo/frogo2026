@@ -4,20 +4,22 @@ import { useEffect, useRef, useCallback } from "react";
 
 declare global {
   interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     YT: any;
     onYouTubeIframeAPIReady: () => void;
   }
 }
 
-// YouTube Player States
 const YT_ENDED = 0;
 
 interface YouTubePlayerProps {
   videoId: string;
   startSeconds?: number;
   onStateChange?: (state: number) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onReady?: (player: any) => void;
   onEnded?: () => void;
+  onError?: (errorCode: number) => void;
 }
 
 export default function YouTubePlayer({
@@ -26,8 +28,10 @@ export default function YouTubePlayer({
   onStateChange,
   onReady,
   onEnded,
+  onError,
 }: YouTubePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
 
   const initPlayer = useCallback(() => {
@@ -43,19 +47,26 @@ export default function YouTubePlayer({
         rel: 0,
         playsinline: 1,
         controls: 0,
+        disablekb: 1,
+        iv_load_policy: 3,
+        fs: 0,
         start: startSeconds ? Math.floor(startSeconds) : undefined,
       },
       events: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onReady: (e: any) => onReady?.(e.target),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onStateChange: (e: any) => {
           onStateChange?.(e.data);
           if (e.data === YT_ENDED) {
             onEnded?.();
           }
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onError: (e: any) => onError?.(e.data),
       },
     });
-  }, [videoId, startSeconds, onReady, onStateChange, onEnded]);
+  }, [videoId, startSeconds, onReady, onStateChange, onEnded, onError]);
 
   useEffect(() => {
     if (window.YT?.Player) {
@@ -75,15 +86,27 @@ export default function YouTubePlayer({
     };
   }, [initPlayer]);
 
+  // When videoId changes AFTER initial mount, load the new video
+  const initialVideoRef = useRef(videoId);
   useEffect(() => {
-    if (playerRef.current?.loadVideoById) {
-      playerRef.current.loadVideoById(videoId);
+    // Skip on first mount — initPlayer already handles it with the start param
+    if (videoId === initialVideoRef.current) {
+      initialVideoRef.current = "";
+      return;
     }
-  }, [videoId]);
+    if (playerRef.current?.loadVideoById) {
+      playerRef.current.loadVideoById({
+        videoId,
+        startSeconds: startSeconds ? Math.floor(startSeconds) : 0,
+      });
+    }
+  }, [videoId, startSeconds]);
 
   return (
-    <div className="w-full h-full bg-black">
+    <div className="relative w-full h-full bg-black">
       <div ref={containerRef} className="w-full h-full" />
+      {/* Transparent overlay blocks all mouse interaction with the iframe */}
+      <div className="absolute inset-0 z-10" />
     </div>
   );
 }

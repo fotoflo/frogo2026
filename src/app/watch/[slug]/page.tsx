@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase";
+import { filterAvailableVideos } from "@/lib/youtube-check";
 import TVClient from "./TVClient";
 
 async function getChannelData(slug: string) {
@@ -18,13 +19,16 @@ async function getChannelData(slug: string) {
     .eq("channel_id", channel.id)
     .order("position");
 
+  // Filter out unavailable YouTube videos before sending to client
+  const available = await filterAvailableVideos(videos ?? []);
+
   // Get all channels for the channel guide
   const { data: allChannels } = await supabase
     .from("channels")
     .select("id, slug, name, icon")
     .order("name");
 
-  return { channel, videos: videos ?? [], allChannels: allChannels ?? [] };
+  return { channel, videos: available, allChannels: allChannels ?? [] };
 }
 
 export default async function WatchChannelPage({

@@ -5,6 +5,18 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 
+interface SearchResultChannel {
+  slug?: string;
+  icon?: string;
+  name?: string;
+}
+
+interface SearchResult {
+  id: string;
+  title: string;
+  channels?: SearchResultChannel;
+}
+
 function PairContent() {
   const searchParams = useSearchParams();
   const initialCode = searchParams.get("code") ?? "";
@@ -14,39 +26,65 @@ function PairContent() {
   const [paired, setPaired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("Ready");
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
-  const hasAutoPaired = useRef(false);
 
-  async function handlePair() {
-    setError(null);
-    const res = await fetch("/api/pair/join", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: code.trim() }),
-    });
-    const data = await res.json();
-    if (data.error) {
-      setError(data.error);
+  const [log, setLog] = useState<string[]>([]);
+  function addLog(msg: string) {
+    setLog((prev) => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+  }
+
+  async function doPair(pairCode: string) {
+    addLog(`doPair called with "${pairCode}"`);
+    if (pairCode.length !== 4) {
+      addLog("Code not 4 digits, aborting");
       return;
     }
-    setSessionId(data.sessionId);
-    setPaired(true);
+    setError(null);
+    setLoading(true);
+    setStatus("Connecting...");
+    addLog("Fetching /api/pair/join...");
+    try {
+      const res = await fetch("/api/pair/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: pairCode.trim() }),
+      });
+      addLog(`Response: ${res.status}`);
+      const data = await res.json();
+      addLog(`Data: ${JSON.stringify(data)}`);
+      if (data.error) {
+        setError(data.error);
+        setStatus("Error: " + data.error);
+        return;
+      }
+      setSessionId(data.sessionId);
+      setPaired(true);
+      setStatus("Paired!");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      addLog(`Catch: ${message}`);
+      setError(message);
+      setStatus("Fetch failed: " + message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   // Send a command
   async function sendCommand(command: string) {
     if (!sessionId) return;
-    const { error: updateError } = await supabase
+    await supabase
       .from("pairing_sessions")
       .update({
         last_command: command,
         last_command_at: new Date().toISOString(),
       })
       .eq("id", sessionId);
-    if (updateError) console.error("Failed to send command:", updateError);
   }
 
   // Search videos
@@ -76,7 +114,7 @@ function PairContent() {
           table: "pairing_sessions",
           filter: `id=eq.${sessionId}`,
         },
-        () => {} // Keep subscription alive
+        () => {}
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") setConnected(true);
@@ -86,13 +124,13 @@ function PairContent() {
     };
   }, [sessionId]);
 
-  // Auto-pair from QR
+  // Auto-pair from QR code
   useEffect(() => {
-    if (initialCode && !paired && !sessionId && !error && !hasAutoPaired.current) {
-      hasAutoPaired.current = true;
-      handlePair();
+    if (initialCode && initialCode.length === 4) {
+      doPair(initialCode);
     }
-  }, [initialCode, paired, sessionId, error]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only once on mount
 
   // Pairing screen
   if (!paired) {
@@ -117,13 +155,22 @@ function PairContent() {
           />
 
           {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
+          <p className="text-white/30 text-xs mt-2">{status}</p>
+          {log.length > 0 && (
+            <div className="mt-4 text-left bg-zinc-900 rounded-lg p-3 max-h-40 overflow-y-auto">
+              {log.map((l, i) => (
+                <div key={i} className="text-[10px] text-green-400 font-mono">{l}</div>
+              ))}
+            </div>
+          )}
 
           <button
-            onClick={handlePair}
-            disabled={code.length !== 4}
-            className="w-full mt-6 rounded-xl bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium py-4 text-lg transition-colors"
+            onClick={() => doPair(code)}
+            onTouchEnd={(e) => { e.preventDefault(); doPair(code); }}
+            disabled={code.length !== 4 || loading}
+            className="w-full mt-6 rounded-xl bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium py-4 text-lg transition-colors touch-manipulation"
           >
-            Connect
+            {loading ? "Connecting..." : "Connect"}
           </button>
         </div>
       </div>
@@ -162,15 +209,12 @@ function PairContent() {
           />
           {searchResults.length > 0 && (
             <div className="mt-2 max-h-60 overflow-y-auto space-y-1">
-              {searchResults.map((v: any) => (
+              {searchResults.map((v: SearchResult) => (
                 <button
                   key={v.id}
                   onClick={() => {
-                    // Navigate TV to this channel
                     const ch = v.channels;
-                    if (ch?.slug) {
-                      sendCommand(`navigate_${ch.slug}`);
-                    }
+                    if (ch?.slug) sendCommand(`navigate_${ch.slug}`);
                     setShowSearch(false);
                     setSearchQuery("");
                   }}
@@ -189,7 +233,7 @@ function PairContent() {
         </div>
       )}
 
-      {/* Channel Up/Down - main control area */}
+      {/* Channel Up/Down */}
       <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
         <button
           onClick={() => sendCommand("prev")}

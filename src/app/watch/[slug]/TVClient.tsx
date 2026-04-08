@@ -8,14 +8,31 @@ import OnScreenRemote from "@/components/OnScreenRemote";
 import { whatsOnNow } from "@/lib/schedule";
 import { supabase } from "@/lib/supabase";
 
+interface Channel {
+  id: string;
+  slug: string;
+  name: string;
+  icon: string;
+}
+
+interface Video {
+  id: string;
+  youtube_id: string;
+  title: string;
+  description?: string;
+  duration_seconds: number;
+  thumbnail_url?: string;
+}
+
 interface TVClientProps {
-  channel: any;
-  videos: any[];
-  allChannels: any[];
+  channel: Channel;
+  videos: Video[];
+  allChannels: Channel[];
 }
 
 export default function TVClient({ channel, videos, allChannels }: TVClientProps) {
   const router = useRouter();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
 
   // Pairing state
@@ -37,6 +54,10 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
   const [showBanner, setShowBanner] = useState(true);
   const bannerTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
+  // QR lingers 10s after chrome fades — tracks whether linger period has expired
+  const [qrHidden, setQrHidden] = useState(false);
+  const qrTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+
   // Calculate what's on now
   const durations = videos.map((v) => v.duration_seconds);
   const schedule = whatsOnNow(durations);
@@ -52,6 +73,27 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
       if (bannerTimeoutRef.current) clearTimeout(bannerTimeoutRef.current);
     };
   }, []);
+
+  // QR linger: hide QR 10s after chrome goes away, reset when chrome reappears
+  const chromeVisible = mouseActive || showBanner;
+  const prevChromeVisibleRef = useRef(chromeVisible);
+
+  // Reset qrHidden when chrome becomes visible (during render, not in effect)
+  if (chromeVisible && !prevChromeVisibleRef.current && qrHidden) {
+    setQrHidden(false);
+  }
+  prevChromeVisibleRef.current = chromeVisible;
+
+  useEffect(() => {
+    if (!chromeVisible) {
+      qrTimeoutRef.current = setTimeout(() => setQrHidden(true), 10000);
+    }
+    return () => {
+      if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
+    };
+  }, [chromeVisible]);
+
+  const showQR = !qrHidden;
 
   // Mouse movement shows on-screen remote, hides 450ms after stop
   useEffect(() => {
@@ -79,6 +121,7 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
         setPairingCode(data.code);
         setSessionId(data.sessionId);
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only on mount
 
   // Video ended -> next in playlist
@@ -88,6 +131,14 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
     setStartSeconds(0);
   }, [currentIndex, videos.length]);
 
+  // Video error (unavailable at runtime) -> skip to next
+  const handleError = useCallback(() => {
+    const nextIdx = (currentIndex + 1) % videos.length;
+    setCurrentIndex(nextIdx);
+    setStartSeconds(0);
+  }, [currentIndex, videos.length]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleReady = useCallback((player: any) => {
     playerRef.current = player;
   }, []);
@@ -101,13 +152,13 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
   );
 
   const nextChannel = useCallback(() => {
-    const idx = allChannels.findIndex((c: any) => c.id === channel.id);
+    const idx = allChannels.findIndex((c: Channel) => c.id === channel.id);
     const next = allChannels[(idx + 1) % allChannels.length];
     switchChannel(next.slug);
   }, [allChannels, channel.id, switchChannel]);
 
   const prevChannel = useCallback(() => {
-    const idx = allChannels.findIndex((c: any) => c.id === channel.id);
+    const idx = allChannels.findIndex((c: Channel) => c.id === channel.id);
     const prev = allChannels[(idx - 1 + allChannels.length) % allChannels.length];
     switchChannel(prev.slug);
   }, [allChannels, channel.id, switchChannel]);
@@ -157,7 +208,7 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
           filter: `id=eq.${sessionId}`,
         },
         (payload) => {
-          const newRow = payload.new as any;
+          const newRow = payload.new as { paired?: boolean; last_command?: string; last_command_at?: string };
           if (newRow.paired && !paired) setPaired(true);
           if (
             newRow.last_command &&
@@ -226,7 +277,7 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
     setShowRemote((s) => !s);
   }
 
-  const channelIdx = allChannels.findIndex((c: any) => c.id === channel.id);
+  const channelIdx = allChannels.findIndex((c: Channel) => c.id === channel.id);
 
   return (
     <div className="fixed inset-0 bg-black" onClick={handleScreenClick}>
@@ -238,12 +289,13 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
             startSeconds={startSeconds}
             onReady={handleReady}
             onEnded={handleEnded}
+            onError={handleError}
           />
         </div>
       )}
 
-      {/* Mini QR code — top right, only when unpaired */}
-      {!paired && pairingCode && sessionId && (
+      {/* Mini QR code — top right, only when unpaired, lingers 2s after chrome */}
+      {!paired && pairingCode && sessionId && showQR && (
         <div className="absolute top-4 right-4 z-50 pointer-events-none">
           <MiniQR code={pairingCode} />
         </div>
@@ -271,6 +323,23 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
             <span className="text-lg">{channel.icon} {channel.name}</span>
             {activeVideo && (
               <div className="text-sm text-white/60 mt-0.5">{activeVideo.title}</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Now playing info — bottom left, shows on mouse move or banner */}
+      {(mouseActive || showBanner) && activeVideo && (
+        <div className="absolute bottom-6 left-6 z-30 pointer-events-none">
+          <div className="bg-black/70 backdrop-blur-sm rounded-lg px-5 py-3 text-white max-w-lg">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-accent font-mono text-sm">{channelIdx + 1}</span>
+              <span className="text-xl">{channel.icon}</span>
+              <span className="font-semibold">{channel.name}</span>
+            </div>
+            <div className="text-sm text-white/80 line-clamp-1">{activeVideo.title}</div>
+            {activeVideo.description && (
+              <div className="text-xs text-white/40 mt-0.5 line-clamp-1">{activeVideo.description}</div>
             )}
           </div>
         </div>

@@ -1,0 +1,97 @@
+# TV Playlist Editor
+
+Manage FrogoTV channel playlists — list, add, remove, reorder videos.
+
+Use when the user says "kill that video", "remove video", "add video to playlist", "reorder playlist", "list playlist", "what's playing", or references editing a channel's videos.
+
+## Arguments
+
+- `$ARGUMENTS` — the action and details (e.g., "remove Dolphins from kids-animals", "list philosophy", "add VIDEO_ID to business at position 3")
+
+## Database Access
+
+Run SQL via the Supabase Management API:
+
+```bash
+curl -s -X POST 'https://api.supabase.com/v1/projects/cnnttsihfbyxhzlmzdtv/database/query' \
+  -H 'Authorization: Bearer sbp_21ada08522e93b65dc9daa6770c488e0be1edcf8' \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "<SQL HERE>"}'
+```
+
+## Actions
+
+### List videos in a channel
+```sql
+SELECT v.position, v.youtube_id, v.title, v.duration_seconds
+FROM videos v
+JOIN channels c ON c.id = v.channel_id
+WHERE c.slug = '<channel-slug>'
+ORDER BY v.position;
+```
+
+### Remove a video (by title search or youtube_id)
+1. Find the video:
+```sql
+SELECT v.id, v.title, v.youtube_id, v.position FROM videos v
+JOIN channels c ON c.id = v.channel_id
+WHERE c.slug = '<channel-slug>' AND (v.title ILIKE '%<search>%' OR v.youtube_id = '<id>');
+```
+2. Delete it:
+```sql
+DELETE FROM videos WHERE id = '<video-uuid>';
+```
+3. Reorder remaining videos to close the gap:
+```sql
+WITH ranked AS (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY position) as new_pos
+  FROM videos WHERE channel_id = (SELECT id FROM channels WHERE slug = '<channel-slug>')
+)
+UPDATE videos SET position = ranked.new_pos FROM ranked WHERE videos.id = ranked.id;
+```
+
+### Add a video
+1. Get video info from YouTube oEmbed or the user's input
+2. Insert:
+```sql
+INSERT INTO videos (channel_id, youtube_id, title, description, thumbnail_url, duration_seconds, position)
+VALUES (
+  (SELECT id FROM channels WHERE slug = '<channel-slug>'),
+  '<youtube_id>',
+  '<title>',
+  '<description>',
+  'https://img.youtube.com/vi/<youtube_id>/maxresdefault.jpg',
+  <duration>,
+  <position>
+);
+```
+3. If inserting in the middle, shift positions first:
+```sql
+UPDATE videos SET position = position + 1
+WHERE channel_id = (SELECT id FROM channels WHERE slug = '<channel-slug>')
+AND position >= <target_position>;
+```
+
+### Reorder a video
+```sql
+-- Remove from old position, insert at new
+-- Step 1: Set target video position to -1 (temp)
+UPDATE videos SET position = -1 WHERE id = '<video-uuid>';
+-- Step 2: Shift others
+UPDATE videos SET position = position - 1
+WHERE channel_id = '<channel-id>' AND position > <old_position>;
+UPDATE videos SET position = position + 1
+WHERE channel_id = '<channel-id>' AND position >= <new_position>;
+-- Step 3: Set final position
+UPDATE videos SET position = <new_position> WHERE id = '<video-uuid>';
+```
+
+### What's on now
+Use the schedule logic: playlist loops from half-hour marks. Calculate:
+- seconds since last half-hour = (minutes % 30) * 60 + seconds
+- walk through video durations to find current video + offset
+
+## After any change
+- Confirm the action with the user
+- Show the updated playlist
+- Note: changes are live immediately — the TV will pick up the new playlist on next channel load

@@ -1,30 +1,43 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
+interface SearchResultChannel {
+  slug?: string;
+  icon?: string;
+  name?: string;
+}
+
+interface SearchResult {
+  id: string;
+  title: string;
+  thumbnail_url: string;
+  channels?: SearchResultChannel;
+}
+
 export default function SearchBar() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [open, setOpen] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (query.length < 2) {
+  const handleQueryChange = useCallback((newQuery: string) => {
+    setQuery(newQuery);
+    if (newQuery.length < 2) {
       setResults([]);
       return;
     }
-
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(async () => {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(newQuery)}`);
       const data = await res.json();
       setResults(data.results);
       setOpen(true);
     }, 300);
-  }, [query]);
+  }, []);
 
   // Close on click outside
   useEffect(() => {
@@ -42,7 +55,7 @@ export default function SearchBar() {
       <input
         type="text"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => handleQueryChange(e.target.value)}
         onFocus={() => results.length > 0 && setOpen(true)}
         placeholder="Search videos..."
         className="w-44 sm:w-56 bg-card-bg border border-card-border rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
@@ -50,7 +63,7 @@ export default function SearchBar() {
 
       {open && results.length > 0 && (
         <div className="absolute top-full mt-1 right-0 w-80 max-h-96 overflow-y-auto bg-card-bg border border-card-border rounded-xl shadow-xl z-50">
-          {results.map((v: any) => {
+          {results.map((v: SearchResult) => {
             const ch = v.channels;
             return (
               <Link

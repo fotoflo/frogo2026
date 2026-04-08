@@ -1,10 +1,21 @@
 "use client";
 
+interface Channel {
+  id: string;
+  slug: string;
+  name: string;
+  icon: string;
+}
+
+interface VideoInfo {
+  title: string;
+}
+
 interface OnScreenRemoteProps {
-  channel: any;
+  channel: Channel;
   channelIdx: number;
-  allChannels: any[];
-  activeVideo: any;
+  allChannels: Channel[];
+  activeVideo: VideoInfo | null;
   onSwitchChannel: (slug: string) => void;
   onPrevChannel: () => void;
   onNextChannel: () => void;
@@ -65,7 +76,7 @@ export default function OnScreenRemote({
 
         {/* Channel list */}
         <div className="overflow-y-auto max-h-[60vh]">
-          {allChannels.map((ch: any, i: number) => (
+          {allChannels.map((ch: Channel, i: number) => (
             <button
               key={ch.id}
               onClick={() => onSwitchChannel(ch.slug)}
