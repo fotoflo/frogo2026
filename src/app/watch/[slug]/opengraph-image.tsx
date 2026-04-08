@@ -6,8 +6,10 @@ export const alt = "Frogo.tv Channel";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-// Revalidate daily — refreshes the thumbnail from the first video
-export const revalidate = 86400;
+// Check often — the cache logic below handles staleness via first-video-id
+export const revalidate = 300;
+
+const BUCKET = "og-images";
 
 /** HEAD-check a thumbnail URL; returns the URL if reachable, null otherwise */
 async function checkImage(url: string): Promise<string | null> {
@@ -16,7 +18,6 @@ async function checkImage(url: string): Promise<string | null> {
     if (!res.ok) return null;
     const ct = res.headers.get("content-type") ?? "";
     if (!ct.startsWith("image/")) return null;
-    // YouTube returns a tiny placeholder (~1KB) for missing maxresdefault
     const len = parseInt(res.headers.get("content-length") ?? "0", 10);
     if (len > 0 && len < 2000) return null;
     return url;
@@ -41,7 +42,7 @@ export default async function OGImage({
 
   const { data: videos } = await supabase
     .from("videos")
-    .select("youtube_id, title, thumbnail_url")
+    .select("id, youtube_id, title, thumbnail_url")
     .eq("channel_id", channel?.id ?? "")
     .order("position")
     .limit(6);
@@ -49,13 +50,48 @@ export default async function OGImage({
   const name = channel?.name ?? slug;
   const firstVideo = videos?.[0];
 
-  // Build thumbnail URL for the main video
+  // Cache key: slug + first video id — changes when playlist order changes
+  const cacheKey = `${slug}/${firstVideo?.id ?? "empty"}.png`;
+
+  // Check if we have a cached version in Supabase Storage
+  const { data: existing } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(cacheKey, 60);
+
+  if (existing?.signedUrl) {
+    // Verify the file actually exists by HEADing it
+    try {
+      const check = await fetch(existing.signedUrl, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(2000),
+      });
+      if (check.ok) {
+        // Serve cached image — fetch and return as response
+        const cached = await fetch(existing.signedUrl, {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (cached.ok) {
+          const buf = await cached.arrayBuffer();
+          return new Response(buf, {
+            headers: {
+              "Content-Type": "image/png",
+              "Cache-Control": "public, max-age=86400, s-maxage=86400",
+            },
+          });
+        }
+      }
+    } catch {
+      // Cache miss or error — fall through to generate
+    }
+  }
+
+  // --- Generate the OG image ---
+
   const rawThumbUrl = firstVideo
     ? firstVideo.thumbnail_url ||
       `https://img.youtube.com/vi/${firstVideo.youtube_id}/maxresdefault.jpg`
     : null;
 
-  // Validate main thumbnail, fall back to hqdefault
   const thumbnailUrl = rawThumbUrl
     ? (await checkImage(rawThumbUrl)) ??
       (await checkImage(
@@ -63,31 +99,9 @@ export default async function OGImage({
       ))
     : null;
 
-  // Validate small thumbnails in parallel, skip any that error
-  const smallThumbs: { youtube_id: string; url: string }[] = [];
-  if (videos && videos.length > 1) {
-    const checks = await Promise.all(
-      videos.slice(1, 6).map(async (v) => {
-        const url =
-          v.thumbnail_url ||
-          `https://img.youtube.com/vi/${v.youtube_id}/maxresdefault.jpg`;
-        const valid =
-          (await checkImage(url)) ??
-          (await checkImage(
-            `https://img.youtube.com/vi/${v.youtube_id}/hqdefault.jpg`
-          ));
-        return valid ? { youtube_id: v.youtube_id, url: valid } : null;
-      })
-    );
-    for (const t of checks) {
-      if (t && smallThumbs.length < 3) smallThumbs.push(t);
-    }
-  }
-
-  // Frogo logo — the horizontal version with mascot + "frogo" text
   const logoUrl = "https://frogo.tv/images/frogo/logo.png";
 
-  return new ImageResponse(
+  const imageResponse = new ImageResponse(
     (
       <div
         style={{
@@ -99,7 +113,6 @@ export default async function OGImage({
           background: "#0a0a12",
         }}
       >
-        {/* === Full-bleed thumbnail === */}
         {thumbnailUrl && (
           <img
             src={thumbnailUrl}
@@ -115,7 +128,6 @@ export default async function OGImage({
           />
         )}
 
-        {/* === Dark gradient — heavier at bottom for text === */}
         <div
           style={{
             position: "absolute",
@@ -130,7 +142,6 @@ export default async function OGImage({
           }}
         />
 
-        {/* === Play button — centered on thumbnail === */}
         <div
           style={{
             position: "absolute",
@@ -154,7 +165,6 @@ export default async function OGImage({
           ▶
         </div>
 
-        {/* === Bottom bar: logo + channel name === */}
         <div
           style={{
             position: "absolute",
@@ -167,7 +177,6 @@ export default async function OGImage({
             gap: "24px",
           }}
         >
-          {/* Frogo logo */}
           <img
             src={logoUrl}
             alt="frogo.tv"
@@ -177,8 +186,6 @@ export default async function OGImage({
               flexShrink: 0,
             }}
           />
-
-          {/* Channel name */}
           <div
             style={{
               fontSize: "56px",
@@ -193,7 +200,6 @@ export default async function OGImage({
           </div>
         </div>
 
-        {/* === Accent line === */}
         <div
           style={{
             position: "absolute",
@@ -210,4 +216,26 @@ export default async function OGImage({
     ),
     { ...size }
   );
+
+  // Upload to Supabase Storage in the background (don't block response)
+  const arrayBuffer = await imageResponse.arrayBuffer();
+  const pngBuffer = Buffer.from(arrayBuffer);
+
+  // Upload (fire-and-forget — don't slow down the response)
+  supabase.storage
+    .from(BUCKET)
+    .upload(cacheKey, pngBuffer, {
+      contentType: "image/png",
+      upsert: true,
+    })
+    .then((r) => {
+      if (r.error) console.error("OG cache upload failed:", r.error.message);
+    });
+
+  return new Response(pngBuffer, {
+    headers: {
+      "Content-Type": "image/png",
+      "Cache-Control": "public, max-age=86400, s-maxage=86400",
+    },
+  });
 }
