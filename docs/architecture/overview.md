@@ -63,6 +63,16 @@ See also:
 - [TV Mode](tv-mode.md) — schedule system, client-side channel switching, YouTube player, on-screen chrome
 - [Pairing](pairing.md) — QR pairing flow, command protocol, Realtime subscription, e2e tests
 
+### OG Image Generation
+Each channel has a dynamic OpenGraph image generated at build/request time via `next/og`. When a channel URL is shared on social media, the image shows:
+1. Full-bleed thumbnail from the channel's first video (validated via HEAD request)
+2. Play button overlay centered on the thumbnail
+3. Frogo logo and channel name along the bottom
+4. Purple accent bar at the bottom edge
+5. Up to 3 additional video thumbnails (validated in parallel)
+
+Thumbnail validation uses HEAD requests with a 3-second timeout. YouTube's `maxresdefault.jpg` is tried first, falling back to `hqdefault.jpg`. Tiny placeholder images (<2KB, which YouTube returns for missing thumbnails) are rejected. Images revalidate daily (`revalidate = 86400`).
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -78,6 +88,7 @@ See also:
 - `src/app/page.tsx` -- Redirects to first channel
 - `src/app/watch/[slug]/page.tsx` -- Channel watch server component (video filtering)
 - `src/app/watch/[slug]/TVClient.tsx` -- Fullscreen TV client (schedule, remote, QR)
+- `src/app/watch/[slug]/opengraph-image.tsx` -- Dynamic OG image per channel
 - `src/app/pair/page.tsx` -- Phone remote UI
 - `src/lib/schedule.ts` -- Broadcast schedule logic
 - `src/lib/youtube-check.ts` -- YouTube oEmbed availability check

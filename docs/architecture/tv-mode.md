@@ -10,6 +10,7 @@ The TV mode is the core experience of Frogo2026. The app behaves like a real tel
 - `src/components/OnScreenRemote.tsx` — mini and expanded on-screen remote
 - `src/components/MiniQR.tsx` — QR code overlay
 - `src/lib/schedule.ts` — broadcast schedule calculation (`whatsOnNow`)
+- `src/app/watch/[slug]/opengraph-image.tsx` — dynamic OG image per channel
 - `src/lib/youtube-check.ts` — oEmbed availability filter
 - `scripts/dev.mjs` — dev server with ngrok tunnel
 
@@ -139,6 +140,40 @@ YouTube videos can become unavailable (private, deleted, region-locked). To avoi
 
 1. **Server-side**: `page.tsx` calls `filterAvailableVideos()` from `youtube-check.ts` for each channel in parallel via `Promise.all`. Each call hits the YouTube oEmbed endpoint; results are cached 30 minutes in-memory.
 2. **Runtime**: `YouTubePlayer.onError` triggers `handleError` in `TVClient`, which advances `currentVideoIndex` by 1.
+
+## OG Image Generation
+
+`src/app/watch/[slug]/opengraph-image.tsx` produces a 1200x630 PNG for each channel using Next.js `next/og` (file-based metadata convention). This image appears when channel URLs are shared on social platforms.
+
+### Layout
+- Full-bleed video thumbnail as background
+- Dark gradient overlay (heavier at bottom for readability)
+- Centered play button (white circle with triangle)
+- Bottom bar: Frogo logo (120px) + channel name (56px bold white)
+- 4px purple accent line at the very bottom
+
+### Thumbnail Validation
+The `checkImage()` helper validates thumbnails via HTTP HEAD before rendering:
+1. Tries `maxresdefault.jpg` first (highest quality YouTube thumbnail)
+2. Falls back to `hqdefault.jpg` if maxres fails
+3. Rejects responses that are not `image/*` content-type
+4. Rejects tiny responses (<2KB) -- YouTube returns small placeholder images for missing thumbnails
+5. 3-second timeout per request
+
+Up to 3 additional video thumbnails are validated in parallel from positions 2-6 in the playlist (currently fetched but not rendered in the layout -- reserved for future use).
+
+### Data Flow
+1. Fetches channel by slug from Supabase (service client)
+2. Fetches first 6 videos ordered by position
+3. Validates thumbnail URLs via HEAD requests
+4. Renders JSX-to-PNG via `ImageResponse`
+5. Revalidates daily (`revalidate = 86400`)
+
+### Important Patterns
+- Uses `runtime = "nodejs"` (not Edge) for full Node.js fetch support
+- Service client (`createServiceClient()`) for server-side Supabase access
+- `AbortSignal.timeout(3000)` prevents slow thumbnail checks from blocking image generation
+- Async `params` (Next.js 15+ pattern): `params: Promise<{ slug: string }>`
 
 ## Dev Server
 

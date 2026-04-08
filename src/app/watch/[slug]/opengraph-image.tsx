@@ -47,7 +47,6 @@ export default async function OGImage({
     .limit(6);
 
   const name = channel?.name ?? slug;
-  const description = channel?.description ?? "";
   const firstVideo = videos?.[0];
 
   // Build thumbnail URL for the main video

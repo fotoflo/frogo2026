@@ -2,14 +2,14 @@
 
 | Bucket     | Count |
 |------------|-------|
-| <=50       | 19    |
+| <=50       | 25    |
 | 51-150     | 14    |
-| 151-300    | 3     |
-| 301-500    | 2     |
-| 501-1000   | 0     |
+| 151-300    | 8     |
+| 301-500    | 1     |
+| 501-1000   | 1     |
 | 1001-2000  | 0     |
 | 2000+      | 0     |
 
-- **Total files:** 38
-- **Over 500 lines:** 0
-- **Largest:** src/app/watch/[slug]/TVClient.tsx (452 lines)
+- **Total files:** 49
+- **Over 500 lines:** 1
+- **Largest:** src/app/watch/[slug]/TVClient.tsx (521 lines)
