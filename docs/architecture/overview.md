@@ -64,21 +64,14 @@ See also:
 - [Pairing](pairing.md) — QR pairing flow, command protocol, Realtime subscription, e2e tests
 
 ### OG Image Generation
-Each channel has a dynamic OpenGraph image generated at build/request time via `next/og`. When a channel URL is shared on social media, the image shows:
-1. Full-bleed thumbnail from the channel's first video (validated via HEAD request)
-2. Play button overlay centered on the thumbnail
-3. Frogo logo and channel name along the bottom
-4. Purple accent bar at the bottom edge
-5. Up to 3 additional video thumbnails (validated in parallel)
-
-Thumbnail validation uses HEAD requests with a 3-second timeout. YouTube's `maxresdefault.jpg` is tried first, falling back to `hqdefault.jpg`. Tiny placeholder images (<2KB, which YouTube returns for missing thumbnails) are rejected. Images revalidate daily (`revalidate = 86400`).
+Each channel has a dynamic OpenGraph image (1200x630 JPEG) generated via `next/og` and cached in Supabase Storage. See [OG Images](og-images.md) for the full caching and compression pipeline.
 
 ### Analytics
-Page views are tracked via the `analytics` library with two plugins:
-- **Mixpanel** (token: 100718) — user behavior, custom events
+Dual-provider analytics via the `analytics` npm package. See [Analytics](analytics.md) for full details.
+- **Mixpanel** — autocapture enabled, 100% session recording
 - **Google Analytics** (G-RG302NZGNF) — standard page view metrics
 
-The `AnalyticsProvider` client component wraps the app and fires `analytics.page()` on each pathname change. See `src/lib/analytics.ts`.
+The `AnalyticsProvider` client component wraps the app and fires `analytics.page()` on each pathname change.
 
 ## Tech Stack
 

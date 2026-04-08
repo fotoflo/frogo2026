@@ -194,7 +194,7 @@ function PairContent() {
               Enter the code on your TV
             </p>
 
-            <div className="flex gap-3 justify-center mb-4">
+            <div className="flex gap-3 justify-center mb-4" role="group" aria-label="Pairing code digits">
               {[0, 1, 2, 3].map((i) => (
                 <input
                   key={i}
@@ -206,6 +206,7 @@ function PairContent() {
                   value={code[i] ?? ""}
                   onChange={(e) => handleDigitChange(i, e.target.value)}
                   onKeyDown={(e) => handleDigitKeyDown(i, e)}
+                  aria-label={`Digit ${i + 1} of 4`}
                   className="w-16 h-20 text-center text-3xl font-mono font-bold bg-[#12122a] border-2 border-white/8 rounded-xl text-white focus:outline-none focus:border-accent/60 focus:shadow-[0_0_20px_rgba(124,92,252,0.15)] transition-all"
                   autoFocus={i === 0}
                 />
@@ -223,11 +224,12 @@ function PairContent() {
               onClick={() => doPair(code)}
               onTouchEnd={(e) => { e.preventDefault(); doPair(code); }}
               disabled={code.length !== 4 || loading}
+              aria-busy={loading}
               className="w-full mt-4 rounded-xl bg-accent/90 hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed text-white font-medium py-4 text-base transition-all active:scale-[0.98] touch-manipulation shadow-[0_4px_20px_rgba(124,92,252,0.25)]"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
                   Connecting...
                 </span>
               ) : (
@@ -237,7 +239,7 @@ function PairContent() {
           </div>
 
           {/* Status text */}
-          <p className="text-white/20 text-xs mt-4">{status}</p>
+          <p className="text-white/20 text-xs mt-4" role="status" aria-live="polite">{status}</p>
 
           {/* Debug log (collapsed by default) */}
           {log.length > 0 && (
@@ -267,7 +269,7 @@ function PairContent() {
 
       {/* Toast */}
       {toast && (
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 animate-slide-up" role="status" aria-live="polite">
           <div className="bg-accent/20 backdrop-blur-md border border-accent/30 text-accent text-xs font-mono px-4 py-2 rounded-full shadow-lg">
             {toast}
           </div>
@@ -294,6 +296,8 @@ function PairContent() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSearch(!showSearch)}
+            aria-expanded={showSearch}
+            aria-controls="search-panel"
             className="px-3 py-1.5 rounded-lg text-xs text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
           >
             {showSearch ? "Close" : "Search"}
@@ -316,10 +320,12 @@ function PairContent() {
 
       {/* Search panel */}
       {showSearch && (
-        <div className="px-5 pb-3 animate-slide-up relative z-10">
+        <div id="search-panel" className="px-5 pb-3 animate-slide-up relative z-10">
           <div className="relative">
+            <label htmlFor="remote-search" className="sr-only">Search videos</label>
             <input
-              type="text"
+              id="remote-search"
+              type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search videos..."
@@ -328,49 +334,51 @@ function PairContent() {
             />
           </div>
           {searchResults.length > 0 && (
-            <div className="mt-2 max-h-52 overflow-y-auto space-y-0.5 rounded-xl bg-black/40 border border-white/5 p-1">
+            <ul className="mt-2 max-h-52 overflow-y-auto space-y-0.5 rounded-xl bg-black/40 border border-white/5 p-1" role="listbox" aria-label="Search results">
               {searchResults.map((v: SearchResult) => (
-                <button
-                  key={v.id}
-                  onClick={() => {
-                    const ch = v.channels;
-                    if (ch?.slug) sendCommand(`navigate_${ch.slug}`);
-                    setShowSearch(false);
-                    setSearchQuery("");
-                  }}
-                  className="w-full text-left flex gap-3 p-3 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium truncate text-white/80">{v.title}</div>
-                    <div className="text-[10px] text-white/30 mt-0.5">
-                      {v.channels?.icon} {v.channels?.name}
+                <li key={v.id} role="option" aria-selected={false}>
+                  <button
+                    onClick={() => {
+                      const ch = v.channels;
+                      if (ch?.slug) sendCommand(`navigate_${ch.slug}`);
+                      setShowSearch(false);
+                      setSearchQuery("");
+                    }}
+                    className="w-full text-left flex gap-3 p-3 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium truncate text-white/80">{v.title}</div>
+                      <div className="text-[10px] text-white/30 mt-0.5">
+                        {v.channels?.icon} {v.channels?.name}
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </div>
       )}
 
       {/* Channel Rocker */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8 relative z-10">
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8 relative z-10" role="group" aria-label="Channel rocker">
         {/* Ambient glow behind rocker */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-accent/5 blur-[80px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-accent/5 blur-[80px] pointer-events-none" aria-hidden="true" />
 
         <button
           onClick={() => sendCommand("prev")}
           onTouchEnd={(e) => { e.preventDefault(); sendCommand("prev"); }}
+          aria-label="Previous channel"
           className="rocker-btn w-full max-w-[280px] py-10 rounded-t-[28px] rounded-b-xl flex flex-col items-center gap-1 touch-manipulation"
         >
-          <svg width="28" height="16" viewBox="0 0 28 16" fill="none" className="text-white/60">
+          <svg width="28" height="16" viewBox="0 0 28 16" fill="none" className="text-white/60" aria-hidden="true">
             <path d="M14 2L26 14H2L14 2Z" fill="currentColor" />
           </svg>
-          <span className="text-[11px] font-medium text-white/30 tracking-widest uppercase mt-1">CH +</span>
+          <span className="text-[11px] font-medium text-white/30 tracking-widest uppercase mt-1" aria-hidden="true">CH +</span>
         </button>
 
         {/* Center divider with label */}
-        <div className="w-full max-w-[280px] flex items-center gap-4 py-1">
+        <div className="w-full max-w-[280px] flex items-center gap-4 py-1" aria-hidden="true">
           <div className="flex-1 h-px bg-white/5" />
           <span className="text-[10px] text-white/20 font-mono tracking-wider">CHANNEL</span>
           <div className="flex-1 h-px bg-white/5" />
@@ -379,18 +387,19 @@ function PairContent() {
         <button
           onClick={() => sendCommand("next")}
           onTouchEnd={(e) => { e.preventDefault(); sendCommand("next"); }}
+          aria-label="Next channel"
           className="rocker-btn w-full max-w-[280px] py-10 rounded-b-[28px] rounded-t-xl flex flex-col items-center gap-1 touch-manipulation"
         >
-          <span className="text-[11px] font-medium text-white/30 tracking-widest uppercase mb-1">CH -</span>
-          <svg width="28" height="16" viewBox="0 0 28 16" fill="none" className="text-white/60">
+          <span className="text-[11px] font-medium text-white/30 tracking-widest uppercase mb-1" aria-hidden="true">CH -</span>
+          <svg width="28" height="16" viewBox="0 0 28 16" fill="none" className="text-white/60" aria-hidden="true">
             <path d="M14 14L2 2H26L14 14Z" fill="currentColor" />
           </svg>
         </button>
       </div>
 
       {/* Number Pad */}
-      <div className="px-6 pb-8 pt-4 relative z-10">
-        <div className="flex items-center gap-4 mb-4 px-2">
+      <div className="px-6 pb-8 pt-4 relative z-10" role="group" aria-label="Direct tune">
+        <div className="flex items-center gap-4 mb-4 px-2" aria-hidden="true">
           <div className="flex-1 h-px bg-white/5" />
           <span className="text-[10px] text-white/15 font-mono tracking-wider">DIRECT TUNE</span>
           <div className="flex-1 h-px bg-white/5" />
@@ -401,9 +410,10 @@ function PairContent() {
               key={n}
               onClick={() => sendCommand(`channel_${n}`)}
               onTouchEnd={(e) => { e.preventDefault(); sendCommand(`channel_${n}`); }}
+              aria-label={`Channel ${n}`}
               className="remote-btn py-5 rounded-2xl text-xl font-mono text-white/70 touch-manipulation relative overflow-hidden group"
             >
-              <span className="relative z-10">{n}</span>
+              <span className="relative z-10" aria-hidden="true">{n}</span>
             </button>
           ))}
         </div>

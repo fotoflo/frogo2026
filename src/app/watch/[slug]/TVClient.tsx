@@ -9,6 +9,7 @@ import { whatsOnNow } from "@/lib/schedule";
 import { getInitialAutoplayState, autoplayTransition } from "@/lib/autoplay";
 import { supabase } from "@/lib/supabase";
 import { FEATURES } from "@/lib/settings";
+import { useInteractions } from "@/lib/useInteractions";
 
 interface Video {
   id: string;
@@ -35,6 +36,9 @@ interface TVClientProps {
 export default function TVClient({ channels, initialChannelIndex }: TVClientProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
+
+  // Interaction tracking (watch history, votes, events)
+  const { trackSeen, trackSkip, vote, trackEvent } = useInteractions();
 
   // Current channel (client-side state — no navigation)
   const [channelIdx, setChannelIdx] = useState(initialChannelIndex);
@@ -158,14 +162,25 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
 
   // Video navigation
   const handleEnded = useCallback(() => {
+    // Video finished naturally — record as "seen"
+    if (activeVideo) trackSeen(activeVideo.id, channel.id);
     setCurrentVideoIndex((prev) => (prev + 1) % videos.length);
     setStartSeconds(0);
-  }, [videos.length]);
+  }, [videos.length, activeVideo, channel.id, trackSeen]);
 
   const handlePrevVideo = useCallback(() => {
+    // Manual skip — record as "skip"
+    if (activeVideo) trackSkip(activeVideo.id, channel.id);
     setCurrentVideoIndex((prev) => (prev - 1 + videos.length) % videos.length);
     setStartSeconds(0);
-  }, [videos.length]);
+  }, [videos.length, activeVideo, channel.id, trackSkip]);
+
+  // Manual next video (skip forward)
+  const handleNextVideo = useCallback(() => {
+    if (activeVideo) trackSkip(activeVideo.id, channel.id);
+    setCurrentVideoIndex((prev) => (prev + 1) % videos.length);
+    setStartSeconds(0);
+  }, [videos.length, activeVideo, channel.id, trackSkip]);
 
   // Video error (unavailable at runtime) -> skip to next
   const handleError = useCallback(() => {
@@ -184,10 +199,11 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
     (idx: number) => {
       const wrapped = ((idx % channels.length) + channels.length) % channels.length;
       setChannelIdx(wrapped);
+      trackEvent("channel_switch", { slug: channels[wrapped].slug, channelIdx: wrapped });
       // Update URL without navigation for bookmarkability
       window.history.replaceState(null, "", `/watch/${channels[wrapped].slug}`);
     },
-    [channels]
+    [channels, trackEvent]
   );
 
   const switchChannelBySlug = useCallback(
@@ -386,9 +402,9 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
 
       {/* Muted indicator — tap anywhere to unmute */}
       {autoplay.showMutedIndicator && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none" role="status" aria-live="polite">
           <div className="bg-black/70 backdrop-blur-sm rounded-full px-4 py-2 text-white/80 text-sm flex items-center gap-2 animate-pulse">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M11 5L6 9H2v6h4l5 4V5z" />
               <line x1="23" y1="9" x2="17" y2="15" />
               <line x1="17" y1="9" x2="23" y2="15" />
@@ -404,12 +420,16 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
         <div className="absolute top-4 right-4 z-50">
           <div
             className="relative cursor-pointer group"
+            role="button"
+            tabIndex={0}
+            aria-label="Dismiss pairing QR code"
             onClick={(e) => { e.stopPropagation(); setQrDismissed(true); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setQrDismissed(true); } }}
             title="Click to dismiss"
           >
             <MiniQR code={pairingCode} />
             {/* X overlay — appears on hover, visually inside the QR card */}
-            <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/50 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100">
+            <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/50 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100" aria-hidden="true">
               <svg width="14" height="14" viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round">
                 <path d="M2 2l6 6M8 2l-6 6" />
               </svg>
@@ -420,14 +440,14 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
 
       {/* Paired indicator */}
       {paired && (
-        <div className="absolute top-4 right-4 z-50 pointer-events-none">
-          <div className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" />
+        <div className="absolute top-4 right-4 z-50 pointer-events-none" aria-label="Remote paired" role="status">
+          <div className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" aria-hidden="true" />
         </div>
       )}
 
       {/* Channel number input overlay */}
       {channelNumber && (
-        <div className="absolute top-8 left-8 z-50 bg-black/80 text-white text-5xl font-mono px-6 py-3 rounded-lg pointer-events-none">
+        <div className="absolute top-8 left-8 z-50 bg-black/80 text-white text-5xl font-mono px-6 py-3 rounded-lg pointer-events-none" aria-live="polite" aria-label={`Channel ${channelNumber}`}>
           {channelNumber}
         </div>
       )}
@@ -436,7 +456,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
       {showBanner && (
         <div className="absolute top-4 left-4 z-40 pointer-events-none">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/frogo/logo.png" alt="frogo.tv" className="h-8 opacity-60" />
+          <img src="/images/frogo/logo.png" alt="" aria-hidden="true" className="h-8 opacity-60" />
         </div>
       )}
 
@@ -475,9 +495,10 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
                   href={`/watch/${channel.slug}/${activeVideo.id}`}
                   className="lower-third-action"
                   title="Video page"
+                  aria-label="Open video page"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/images/frogo/frogo-icon.png" alt="Frogo" className="w-4 h-4 opacity-70" />
+                  <img src="/images/frogo/frogo-icon.png" alt="" aria-hidden="true" className="w-4 h-4 opacity-70" />
                 </a>
 
                 {/* YouTube — original video */}
@@ -487,19 +508,21 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
                   rel="noopener noreferrer"
                   className="lower-third-action"
                   title="Watch on YouTube"
+                  aria-label="Watch on YouTube"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                   </svg>
                 </a>
 
                 {/* Next video */}
                 <button
-                  onClick={handleEnded}
+                  onClick={handleNextVideo}
                   className="lower-third-action"
                   title="Next video"
+                  aria-label="Next video"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M4 5v14l12-7L4 5zm14 0v14h2V5h-2z"/>
                   </svg>
                 </button>
@@ -510,9 +533,9 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
       )}
 
       {/* Network bug — frogo logo watermark, bottom-right */}
-      <div className="absolute bottom-4 right-4 z-20 pointer-events-none opacity-40">
+      <div className="absolute bottom-4 right-4 z-20 pointer-events-none opacity-40" aria-hidden="true">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/images/frogo/logo.png" alt="frogo.tv" className="h-6" />
+        <img src="/images/frogo/logo.png" alt="" className="h-6" />
       </div>
 
       {/* On-screen controls — Classic HUD or minimal remote */}
@@ -541,8 +564,9 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
               }}
               onPrevChannel={prevChannel}
               onNextChannel={nextChannel}
-              onNextVideo={handleEnded}
+              onNextVideo={handleNextVideo}
               onPrevVideo={handlePrevVideo}
+              onVote={(upvote: boolean) => activeVideo && vote(activeVideo.id, upvote)}
               onTogglePlay={handleScreenClick}
               onJumpToVideo={(index) => {
                 setCurrentVideoIndex(index);
