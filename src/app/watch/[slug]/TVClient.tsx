@@ -1,19 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
 import YouTubePlayer from "@/components/YouTubePlayer";
 import MiniQR from "@/components/MiniQR";
 import OnScreenRemote from "@/components/OnScreenRemote";
 import { whatsOnNow } from "@/lib/schedule";
 import { supabase } from "@/lib/supabase";
-
-interface Channel {
-  id: string;
-  slug: string;
-  name: string;
-  icon: string;
-}
 
 interface Video {
   id: string;
@@ -24,16 +16,27 @@ interface Video {
   thumbnail_url?: string;
 }
 
-interface TVClientProps {
-  channel: Channel;
+interface ChannelData {
+  id: string;
+  slug: string;
+  name: string;
+  icon: string;
   videos: Video[];
-  allChannels: Channel[];
 }
 
-export default function TVClient({ channel, videos, allChannels }: TVClientProps) {
-  const router = useRouter();
+interface TVClientProps {
+  channels: ChannelData[];
+  initialChannelIndex: number;
+}
+
+export default function TVClient({ channels, initialChannelIndex }: TVClientProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
+
+  // Current channel (client-side state — no navigation)
+  const [channelIdx, setChannelIdx] = useState(initialChannelIndex);
+  const channel = channels[channelIdx];
+  const videos = channel.videos;
 
   // Pairing state
   const [pairingCode, setPairingCode] = useState<string | null>(null);
@@ -54,19 +57,34 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
   const [showBanner, setShowBanner] = useState(true);
   const bannerTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-  // QR lingers 10s after chrome fades — tracks whether linger period has expired
+  // QR lingers 10s after chrome fades
   const [qrHidden, setQrHidden] = useState(false);
   const qrTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-  // Calculate what's on now
+  // Calculate what's on now for this channel
   const durations = videos.map((v) => v.duration_seconds);
   const schedule = whatsOnNow(durations);
 
-  const [currentIndex, setCurrentIndex] = useState(schedule.index);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(schedule.index);
   const [startSeconds, setStartSeconds] = useState(schedule.startSeconds);
-  const activeVideo = videos[currentIndex] || videos[0];
+  const activeVideo = videos[currentVideoIndex] || videos[0];
 
-  // Hide banner after 4 seconds
+  // When channel changes, recalculate schedule
+  const prevChannelIdRef = useRef(channel.id);
+  useEffect(() => {
+    if (channel.id === prevChannelIdRef.current) return;
+    prevChannelIdRef.current = channel.id;
+    const newDurations = channel.videos.map((v) => v.duration_seconds);
+    const newSchedule = whatsOnNow(newDurations);
+    setCurrentVideoIndex(newSchedule.index);
+    setStartSeconds(newSchedule.startSeconds);
+    // Show channel banner on switch
+    setShowBanner(true);
+    if (bannerTimeoutRef.current) clearTimeout(bannerTimeoutRef.current);
+    bannerTimeoutRef.current = setTimeout(() => setShowBanner(false), 4000);
+  }, [channel]);
+
+  // Hide banner after 4 seconds on initial load
   useEffect(() => {
     bannerTimeoutRef.current = setTimeout(() => setShowBanner(false), 4000);
     return () => {
@@ -78,7 +96,6 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
   const chromeVisible = mouseActive || showBanner;
   const prevChromeVisibleRef = useRef(chromeVisible);
 
-  // Reset qrHidden when chrome becomes visible (during render, not in effect)
   if (chromeVisible && !prevChromeVisibleRef.current && qrHidden) {
     setQrHidden(false);
   }
@@ -109,7 +126,7 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
     };
   }, []);
 
-  // Create pairing session
+  // Create pairing session (once, never torn down)
   useEffect(() => {
     fetch("/api/pair", {
       method: "POST",
@@ -122,46 +139,55 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
         setSessionId(data.sessionId);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only on mount
+  }, []); // Only on mount — component never unmounts on channel switch
 
   // Video ended -> next in playlist
   const handleEnded = useCallback(() => {
-    const nextIdx = (currentIndex + 1) % videos.length;
-    setCurrentIndex(nextIdx);
+    setCurrentVideoIndex((prev) => (prev + 1) % videos.length);
     setStartSeconds(0);
-  }, [currentIndex, videos.length]);
+  }, [videos.length]);
 
   // Video error (unavailable at runtime) -> skip to next
   const handleError = useCallback(() => {
-    const nextIdx = (currentIndex + 1) % videos.length;
-    setCurrentIndex(nextIdx);
+    setCurrentVideoIndex((prev) => (prev + 1) % videos.length);
     setStartSeconds(0);
-  }, [currentIndex, videos.length]);
+  }, [videos.length]);
+
+  // DEBUG: track player state
+  const [debugInfo, setDebugInfo] = useState("");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleReady = useCallback((player: any) => {
     playerRef.current = player;
+    setDebugInfo(`ready, state=${player.getPlayerState()}, vid=${player.getVideoData()?.video_id}`);
   }, []);
 
-  // Channel switching
-  const switchChannel = useCallback(
-    (slug: string) => {
-      router.push(`/watch/${slug}`);
+  // Channel switching — just state changes, no navigation
+  const switchToChannel = useCallback(
+    (idx: number) => {
+      const wrapped = ((idx % channels.length) + channels.length) % channels.length;
+      setChannelIdx(wrapped);
+      // Update URL without navigation for bookmarkability
+      window.history.replaceState(null, "", `/watch/${channels[wrapped].slug}`);
     },
-    [router]
+    [channels]
+  );
+
+  const switchChannelBySlug = useCallback(
+    (slug: string) => {
+      const idx = channels.findIndex((c) => c.slug === slug);
+      if (idx >= 0) switchToChannel(idx);
+    },
+    [channels, switchToChannel]
   );
 
   const nextChannel = useCallback(() => {
-    const idx = allChannels.findIndex((c: Channel) => c.id === channel.id);
-    const next = allChannels[(idx + 1) % allChannels.length];
-    switchChannel(next.slug);
-  }, [allChannels, channel.id, switchChannel]);
+    switchToChannel(channelIdx + 1);
+  }, [channelIdx, switchToChannel]);
 
   const prevChannel = useCallback(() => {
-    const idx = allChannels.findIndex((c: Channel) => c.id === channel.id);
-    const prev = allChannels[(idx - 1 + allChannels.length) % allChannels.length];
-    switchChannel(prev.slug);
-  }, [allChannels, channel.id, switchChannel]);
+    switchToChannel(channelIdx - 1);
+  }, [channelIdx, switchToChannel]);
 
   // Handle remote commands
   const handleCommand = useCallback(
@@ -173,27 +199,20 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
         case "prev":
           prevChannel();
           break;
-        case "channel_1":
-        case "channel_2":
-        case "channel_3":
-        case "channel_4":
-        case "channel_5":
-        case "channel_6":
-        case "channel_7":
-        case "channel_8":
-        case "channel_9": {
-          const num = parseInt(command.split("_")[1], 10);
-          if (num >= 1 && num <= allChannels.length) {
-            switchChannel(allChannels[num - 1].slug);
+        default:
+          if (command.startsWith("channel_")) {
+            const num = parseInt(command.split("_")[1], 10);
+            switchToChannel(num - 1);
+          } else if (command.startsWith("navigate_")) {
+            const slug = command.replace("navigate_", "");
+            switchChannelBySlug(slug);
           }
-          break;
-        }
       }
     },
-    [nextChannel, prevChannel, allChannels, switchChannel]
+    [nextChannel, prevChannel, switchToChannel, switchChannelBySlug]
   );
 
-  // Supabase Realtime for remote control
+  // Supabase Realtime for remote control (single persistent subscription)
   useEffect(() => {
     if (!sessionId) return;
 
@@ -242,8 +261,8 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
         if (channelNumberTimeoutRef.current) clearTimeout(channelNumberTimeoutRef.current);
         channelNumberTimeoutRef.current = setTimeout(() => {
           const num = parseInt(newNumber, 10);
-          if (num >= 1 && num <= allChannels.length) {
-            switchChannel(allChannels[num - 1].slug);
+          if (num >= 1) {
+            switchToChannel(num - 1);
           }
           setChannelNumber("");
           setTimeout(() => setShowBanner(false), 3000);
@@ -260,6 +279,10 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
           e.preventDefault();
           nextChannel();
           break;
+        case " ":
+          e.preventDefault();
+          handleScreenClick();
+          break;
         case "f":
           document.documentElement.requestFullscreen?.();
           break;
@@ -270,14 +293,46 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [channelNumber, allChannels, switchChannel, nextChannel, prevChannel]);
+  }, [channelNumber, switchToChannel, nextChannel, prevChannel]);
 
-  // Click on video area toggles remote overlay
+  // Track if video is actually playing
+  const [needsStart, setNeedsStart] = useState(false);
+
+  // Check if autoplay was blocked after player is ready
+  useEffect(() => {
+    if (!playerRef.current) return;
+    const checkInterval = setInterval(() => {
+      const state = playerRef.current?.getPlayerState?.();
+      if (state === 1 || state === 3) {
+        // Playing or buffering — autoplay worked
+        setNeedsStart(false);
+        clearInterval(checkInterval);
+      } else if (state === 5 || state === -1) {
+        // Cued or unstarted — autoplay was blocked
+        setNeedsStart(true);
+      }
+    }, 500);
+    return () => clearInterval(checkInterval);
+  });
+
+  // Click on video area
   function handleScreenClick() {
-    setShowRemote((s) => !s);
-  }
+    const player = playerRef.current;
+    if (!player?.getPlayerState) return;
 
-  const channelIdx = allChannels.findIndex((c: Channel) => c.id === channel.id);
+    const state = player.getPlayerState();
+    if (state === 5 || state === -1) {
+      // First click starts playback (satisfies browser autoplay policy)
+      player.playVideo();
+      setNeedsStart(false);
+      return;
+    }
+    if (state === 1) {
+      player.pauseVideo();
+    } else {
+      player.playVideo();
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black" onClick={handleScreenClick}>
@@ -294,7 +349,31 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
         </div>
       )}
 
-      {/* Mini QR code — top right, only when unpaired, lingers 2s after chrome */}
+      {/* Click to start overlay — shown when browser blocks autoplay */}
+      {needsStart && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 cursor-pointer">
+          <div className="text-center">
+            <div className="text-6xl mb-4">&#9654;</div>
+            <div className="text-white/70 text-lg">Click to start</div>
+          </div>
+        </div>
+      )}
+
+      {/* DEBUG overlay — click to copy */}
+      {debugInfo && (
+        <div
+          className="absolute top-20 left-4 z-50 bg-red-900/80 text-white text-xs font-mono px-3 py-2 rounded cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            const text = `${debugInfo} | vid=${activeVideo?.youtube_id} | ch=${channel.name}`;
+            navigator.clipboard.writeText(text);
+          }}
+        >
+          {debugInfo} | vid={activeVideo?.youtube_id} | ch={channel.name}
+        </div>
+      )}
+
+      {/* Mini QR code — top right, only when unpaired */}
       {!paired && pairingCode && sessionId && showQR && (
         <div className="absolute top-4 right-4 z-50 pointer-events-none">
           <MiniQR code={pairingCode} />
@@ -354,14 +433,15 @@ export default function TVClient({ channel, videos, allChannels }: TVClientProps
           <OnScreenRemote
             channel={channel}
             channelIdx={channelIdx}
-            allChannels={allChannels}
+            allChannels={channels}
             activeVideo={activeVideo}
             onSwitchChannel={(slug) => {
-              switchChannel(slug);
+              switchChannelBySlug(slug);
               setShowRemote(false);
             }}
             onPrevChannel={prevChannel}
             onNextChannel={nextChannel}
+            onTogglePlay={handleScreenClick}
             onClose={() => setShowRemote(false)}
             expanded={showRemote}
           />

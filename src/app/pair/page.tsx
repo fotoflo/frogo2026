@@ -75,16 +75,26 @@ function PairContent() {
     }
   }
 
+  // Debug toast
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+  function showToast(msg: string) {
+    setToast(msg);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 2000);
+  }
+
   // Send a command
   async function sendCommand(command: string) {
     if (!sessionId) return;
-    await supabase
+    const { error } = await supabase
       .from("pairing_sessions")
       .update({
         last_command: command,
         last_command_at: new Date().toISOString(),
       })
       .eq("id", sessionId);
+    showToast(error ? `ERR: ${error.message}` : `sent: ${command}`);
   }
 
   // Search videos
@@ -179,7 +189,13 @@ function PairContent() {
 
   // Remote control
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
+    <div className="min-h-screen bg-black text-white flex flex-col relative">
+      {/* Debug toast */}
+      {toast && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 bg-zinc-800 border border-white/10 text-white text-xs font-mono px-3 py-1.5 rounded-lg shadow-lg">
+          {toast}
+        </div>
+      )}
       {/* Status bar */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-2">
@@ -188,12 +204,27 @@ function PairContent() {
             Connected{connected ? " - live" : ""}
           </span>
         </div>
-        <button
-          onClick={() => setShowSearch(!showSearch)}
-          className="text-sm text-accent"
-        >
-          {showSearch ? "Close" : "Search"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowSearch(!showSearch)}
+            className="text-sm text-accent"
+          >
+            {showSearch ? "Close" : "Search"}
+          </button>
+          <button
+            onClick={() => {
+              setPaired(false);
+              setSessionId(null);
+              setCode("");
+              setConnected(false);
+              setStatus("Ready");
+              setLog([]);
+            }}
+            className="text-sm text-red-400"
+          >
+            Unpair
+          </button>
+        </div>
       </div>
 
       {/* Search panel */}

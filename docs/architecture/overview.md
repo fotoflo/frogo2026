@@ -8,18 +8,20 @@ Frogo2026 is an always-on TV experience. Users tune into curated channels that b
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
 │  Desktop     │     │  Next.js     │     │  Supabase   │
 │  Browser     │◄───►│  App Router  │◄───►│  Postgres   │
-│  (TV)        │     │  (Vercel)    │     │             │
+│  (TV)        │     │  (Vercel)    │     │  + Realtime │
 └──────┬───────┘     └──────┬───────┘     └─────────────┘
        │                    │
        │ Supabase           │ API Routes
-       │ Realtime           │ /api/search
+       │ Realtime           │ /api/pair
+       │ (channel cmds)     │ /api/pair/join
+       │                    │ /api/search
        │                    │ /api/tunnel-url
        │                    │ /api/network-ip
-┌──────┴───────┐     ┌──────┴───────┐
-│  Mobile      │     │  Redis       │
-│  Browser     │     │  (Sessions   │
-│  (Remote)    │     │   + State)   │
-└──────────────┘     └──────────────┘
+┌──────┴───────┐
+│  Mobile      │
+│  Browser     │
+│  (Remote)    │
+└──────────────┘
 ```
 
 ## Data Model
@@ -43,28 +45,30 @@ Links a TV player to a phone remote.
 
 ### TV Playback
 1. `/` redirects to the first channel (`/watch/[slug]`)
-2. Server component filters out unavailable videos via oEmbed
-3. `TVClient` calculates broadcast position from half-hour schedule boundaries
-4. YouTube player runs fullscreen, no controls, transparent overlay
-5. Mouse movement reveals on-screen chrome (450ms fade); click expands full guide
-6. QR code + 4-digit code linger 10s after chrome fades
+2. Server component fetches **all channels** + their videos in parallel; filters unavailable via oEmbed
+3. `TVClient` receives all channels; channel switching is client-side state (no navigation)
+4. `TVClient` calculates broadcast position from half-hour schedule boundaries
+5. YouTube player runs fullscreen, no controls, transparent overlay
+6. Mouse movement reveals on-screen chrome (450ms fade); click expands full guide
+7. QR code + 4-digit code linger 10s after chrome fades; hidden when paired
 
 ### Phone Remote
 1. Scan QR or enter 4-digit code at `/pair`
-2. Remote shows channel up/down, number pad (1-9), search
-3. No play/pause -- TV is always playing
+2. Phone writes `last_command` + `last_command_at` directly to Supabase (anon client)
+3. TV receives command via Supabase Realtime UPDATE subscription; deduplicates by timestamp
+4. Remote shows channel up/down, number pad (1-9), search, unpair button
+5. No play/pause command — TV is always broadcasting
 
 See also:
-- [TV Mode](tv-mode.md) -- schedule system, fullscreen behavior, on-screen remote
-- [Pairing](pairing.md) -- QR pairing flow, remote control interface
+- [TV Mode](tv-mode.md) — schedule system, client-side channel switching, YouTube player, on-screen chrome
+- [Pairing](pairing.md) — QR pairing flow, command protocol, Realtime subscription, e2e tests
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Next.js 16, React 19, TypeScript, Tailwind v4 |
-| Database | Supabase (Postgres) |
-| Cache/State | Redis |
+| Database | Supabase (Postgres + Realtime) |
 | Hosting | Vercel |
 | Video | YouTube IFrame API |
 | Dev Tooling | ngrok (tunnel for mobile testing) |
@@ -81,10 +85,13 @@ See also:
 - `src/lib/types.ts` -- TypeScript interfaces
 - `src/components/YouTubePlayer.tsx` -- YouTube player (no controls, overlay)
 - `src/components/MiniQR.tsx` -- QR code overlay on TV screen
-- `src/components/OnScreenRemote.tsx` -- On-screen remote overlay
+- `src/components/OnScreenRemote.tsx` -- On-screen remote overlay (mini + expanded)
+- `src/app/api/pair/route.ts` -- Session creation
+- `src/app/api/pair/join/route.ts` -- Phone join by code
 - `src/app/api/search/route.ts` -- Video search API
 - `src/app/api/tunnel-url/route.ts` -- ngrok tunnel URL endpoint
 - `src/app/api/network-ip/route.ts` -- Local network IP for QR codes
-- `scripts/dev.mjs` -- Dev server with port kill + ngrok
+- `src/lib/pairing.e2e.test.ts` -- E2E pairing lifecycle tests
+- `scripts/dev.mjs` -- Dev server with port kill + ngrok tunnel
 - `supabase/schema.sql` -- Database schema
 - `supabase/seed.sql` -- Seed data

@@ -29,6 +29,15 @@ const next = spawn("npx", ["next", "dev", "-p", String(PORT)], {
 // Start ngrok tunnel
 async function startTunnel() {
   try {
+    // Load NGROK_AUTHTOKEN from .env.local if not already in env
+    if (!process.env.NGROK_AUTHTOKEN) {
+      const { readFileSync } = await import("fs");
+      try {
+        const envFile = readFileSync(".env.local", "utf8");
+        const match = envFile.match(/^NGROK_AUTHTOKEN=(.+)$/m);
+        if (match) process.env.NGROK_AUTHTOKEN = match[1].trim();
+      } catch {}
+    }
     const ngrok = await import("@ngrok/ngrok");
     const listener = await ngrok.forward({
       addr: PORT,

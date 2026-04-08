@@ -19,6 +19,7 @@ interface OnScreenRemoteProps {
   onSwitchChannel: (slug: string) => void;
   onPrevChannel: () => void;
   onNextChannel: () => void;
+  onTogglePlay: () => void;
   onClose: () => void;
   /** true when user clicked to expand, false when just mouse hover */
   expanded: boolean;
@@ -32,6 +33,7 @@ export default function OnScreenRemote({
   onSwitchChannel,
   onPrevChannel,
   onNextChannel,
+  onTogglePlay,
   onClose,
   expanded,
 }: OnScreenRemoteProps) {
@@ -41,16 +43,22 @@ export default function OnScreenRemote({
       <div className="absolute bottom-8 right-8 flex flex-col items-center gap-1 transition-opacity">
         <button
           onClick={onPrevChannel}
-          className="w-12 h-10 rounded-t-xl bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white text-lg transition-colors"
+          className="w-12 h-10 rounded-t-xl bg-black/70 backdrop-blur-sm border border-white/20 hover:bg-black/80 text-white text-lg transition-colors"
         >
           ▲
         </button>
-        <div className="w-12 h-10 flex items-center justify-center bg-white/10 backdrop-blur-sm text-white font-mono text-sm">
+        <div className="w-12 h-10 flex items-center justify-center bg-black/70 backdrop-blur-sm border-x border-white/20 text-white font-mono text-sm">
           {channelIdx + 1}
         </div>
         <button
+          onClick={onTogglePlay}
+          className="w-12 h-8 flex items-center justify-center bg-black/70 backdrop-blur-sm border-x border-white/20 text-white text-sm hover:bg-black/80 transition-colors"
+        >
+          ❚❚
+        </button>
+        <button
           onClick={onNextChannel}
-          className="w-12 h-10 rounded-b-xl bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white text-lg transition-colors"
+          className="w-12 h-10 rounded-b-xl bg-black/70 backdrop-blur-sm border border-white/20 hover:bg-black/80 text-white text-lg transition-colors"
         >
           ▼
         </button>
