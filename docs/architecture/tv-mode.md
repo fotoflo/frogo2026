@@ -8,8 +8,10 @@ The TV mode is the core experience of Frogo2026. The app behaves like a real tel
 - `src/app/watch/[slug]/TVClient.tsx` — client component: all TV playback logic
 - `src/components/YouTubePlayer.tsx` — YouTube IFrame API wrapper
 - `src/components/OnScreenRemote.tsx` — mini and expanded on-screen remote
+- `src/components/ClassicHUD.tsx` — classic frogo.tv HUD overlay (channel browser + controls)
 - `src/components/MiniQR.tsx` — QR code overlay
 - `src/lib/schedule.ts` — broadcast schedule calculation (`whatsOnNow`)
+- `src/lib/settings.ts` — feature flags (`FEATURES.CLASSIC_HUD`, etc.)
 - `src/app/watch/[slug]/opengraph-image.tsx` — dynamic OG image per channel
 - `src/lib/youtube-check.ts` — oEmbed availability filter
 - `scripts/dev.mjs` — dev server with ngrok tunnel
@@ -100,7 +102,38 @@ Cleanup destroys the YT player and removes all child DOM nodes from the wrapper.
 
 ## On-Screen Chrome
 
-### Visibility Logic
+The TV has two chrome modes, toggled by the `FEATURES.CLASSIC_HUD` flag in `src/lib/settings.ts` (see `docs/architecture/feature-flags.md`):
+
+1. **Classic HUD** (`CLASSIC_HUD: true`) — full overlay modeled after the original frogo.tv (2012-2014)
+2. **Minimal Remote** (`CLASSIC_HUD: false`) — lightweight on-screen remote + lower-third info bar
+
+When Classic HUD is active, the minimal remote and broadcast lower-third are hidden. `TVClient` conditionally renders one or the other based on the flag.
+
+### Classic HUD (`src/components/ClassicHUD.tsx`)
+
+A collapsible 3-panel overlay inspired by the original frogo.tv interface. It has three display states managed by `HUDState`: `"expanded"`, `"collapsed"`, and `"minimized"`.
+
+**Panels:**
+- **Top Panel** (always visible when not minimized): Frogo logo, current channel number/icon/name, Browse/Close toggle button
+- **Middle Content** (expanded only): Left sidebar with channel categories (derived from channel icons) and a right grid of channel tiles with thumbnails. Clicking a tile calls `onSwitchChannel(slug)`
+- **Playlist Strip** (collapsed/minimized only): Horizontal scrollable row of video thumbnails for the current channel. Active video marked with "NOW" badge. Clicking a thumbnail calls `onJumpToVideo(index)`
+- **Bottom Panel** (always visible): Interactive scrub bar, now-playing info (thumbnail + title + channel), time display, and playback controls (prev/play/next video, prev/next channel, fullscreen)
+
+**Interaction model:**
+- Mouse enter on the HUD area transitions from `minimized` to `collapsed`
+- Clicking "Browse" expands to full channel browser; clicking "Close" minimizes
+- Auto-collapse after 15 seconds of idle in expanded state, then minimizes 2 seconds later
+- Scrub bar supports click-and-drag seeking via mousedown/mousemove/mouseup handlers
+- Progress polled from YouTube player every 500ms
+
+**Thumbnail validation:**
+The playlist strip probes YouTube thumbnails on load. If a thumbnail is 120x90px (YouTube's placeholder for unavailable videos) or fails to load, the video is hidden from the strip via a `badThumbs` Set.
+
+**CSS:** Styles for `.classic-hud`, `.hud-top-panel`, `.hud-content`, `.hud-bottom-panel`, etc. are in `src/app/globals.css`.
+
+### Minimal Remote (legacy default)
+
+#### Visibility Logic
 - **Mouse movement**: sets `mouseActive=true`, clears after 450ms of inactivity
 - **Channel banner**: shows on channel switch or keyboard digit input; auto-hides after 4s
 - `chromeVisible = mouseActive || showBanner`

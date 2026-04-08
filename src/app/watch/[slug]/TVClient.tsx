@@ -4,9 +4,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import YouTubePlayer from "@/components/YouTubePlayer";
 import MiniQR from "@/components/MiniQR";
 import OnScreenRemote from "@/components/OnScreenRemote";
+import ClassicHUD from "@/components/ClassicHUD";
 import { whatsOnNow } from "@/lib/schedule";
 import { getInitialAutoplayState, autoplayTransition } from "@/lib/autoplay";
 import { supabase } from "@/lib/supabase";
+import { FEATURES } from "@/lib/settings";
 
 interface Video {
   id: string;
@@ -48,6 +50,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
   // Mouse / remote overlay
   const [showRemote, setShowRemote] = useState(false);
   const [mouseActive, setMouseActive] = useState(false);
+  const [hudHovered, setHudHovered] = useState(false);
   const mouseTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   // Channel number input
@@ -122,19 +125,20 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
 
   const showQR = !qrHidden;
 
-  // Mouse movement shows on-screen remote, hides 450ms after stop
+  // Mouse movement shows on-screen remote, hides after timeout
+  const keepMouseAlive = useCallback(() => {
+    setMouseActive(true);
+    if (mouseTimeoutRef.current) clearTimeout(mouseTimeoutRef.current);
+    mouseTimeoutRef.current = setTimeout(() => setMouseActive(false), 2500);
+  }, []);
+
   useEffect(() => {
-    function onMouseMove() {
-      setMouseActive(true);
-      if (mouseTimeoutRef.current) clearTimeout(mouseTimeoutRef.current);
-      mouseTimeoutRef.current = setTimeout(() => setMouseActive(false), 450);
-    }
-    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mousemove", keepMouseAlive);
     return () => {
-      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mousemove", keepMouseAlive);
       if (mouseTimeoutRef.current) clearTimeout(mouseTimeoutRef.current);
     };
-  }, []);
+  }, [keepMouseAlive]);
 
   // Create pairing session (once, never torn down)
   useEffect(() => {
@@ -151,9 +155,14 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only on mount — component never unmounts on channel switch
 
-  // Video ended -> next in playlist
+  // Video navigation
   const handleEnded = useCallback(() => {
     setCurrentVideoIndex((prev) => (prev + 1) % videos.length);
+    setStartSeconds(0);
+  }, [videos.length]);
+
+  const handlePrevVideo = useCallback(() => {
+    setCurrentVideoIndex((prev) => (prev - 1 + videos.length) % videos.length);
     setStartSeconds(0);
   }, [videos.length]);
 
@@ -253,6 +262,63 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
     };
   }, [sessionId, paired, handleCommand]);
 
+  // Autoplay state machine — always starts muted, unmutes on user interaction
+  const [autoplay, setAutoplay] = useState(getInitialAutoplayState);
+
+  // When player is ready, try to unmute after a short delay
+  useEffect(() => {
+    if (autoplay.state !== "muted" || !autoplay.shouldAttemptUnmute) return;
+    const player = playerRef.current;
+    if (!player) return;
+
+    const timer = setTimeout(() => {
+      try {
+        player.unMute();
+        player.setVolume(100);
+        // Check if unmute stuck — some browsers re-mute immediately
+        setTimeout(() => {
+          if (player.isMuted()) {
+            setAutoplay((s) => autoplayTransition(s, { type: "UNMUTE_ATTEMPT_FAILED" }));
+          } else {
+            setAutoplay((s) => autoplayTransition(s, { type: "UNMUTE_ATTEMPT_SUCCEEDED" }));
+          }
+        }, 200);
+      } catch {
+        setAutoplay((s) => autoplayTransition(s, { type: "UNMUTE_ATTEMPT_FAILED" }));
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [autoplay.state, autoplay.shouldAttemptUnmute]);
+
+  // Click on video area — unmute if muted, otherwise toggle play/pause
+  const handleScreenClick = useCallback(() => {
+    const player = playerRef.current;
+
+    // Always send user interaction to autoplay state machine
+    if (autoplay.state === "muted") {
+      setAutoplay((s) => autoplayTransition(s, { type: "USER_INTERACTION" }));
+      if (player) {
+        player.unMute();
+        player.setVolume(100);
+        // If player was paused (shouldn't happen with muted autoplay, but just in case)
+        const state = player.getPlayerState?.();
+        if (state !== 1 && state !== 3) {
+          player.playVideo();
+        }
+      }
+      return;
+    }
+
+    if (!player?.getPlayerState) return;
+    const state = player.getPlayerState();
+    if (state === 1) {
+      player.pauseVideo();
+    } else {
+      player.playVideo();
+    }
+  }, [autoplay.state]);
+
   // Keyboard controls
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -300,64 +366,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [channelNumber, switchToChannel, nextChannel, prevChannel]);
-
-  // Autoplay state machine — always starts muted, unmutes on user interaction
-  const [autoplay, setAutoplay] = useState(getInitialAutoplayState);
-
-  // When player is ready, try to unmute after a short delay
-  useEffect(() => {
-    if (autoplay.state !== "muted" || !autoplay.shouldAttemptUnmute) return;
-    const player = playerRef.current;
-    if (!player) return;
-
-    const timer = setTimeout(() => {
-      try {
-        player.unMute();
-        player.setVolume(100);
-        // Check if unmute stuck — some browsers re-mute immediately
-        setTimeout(() => {
-          if (player.isMuted()) {
-            setAutoplay((s) => autoplayTransition(s, { type: "UNMUTE_ATTEMPT_FAILED" }));
-          } else {
-            setAutoplay((s) => autoplayTransition(s, { type: "UNMUTE_ATTEMPT_SUCCEEDED" }));
-          }
-        }, 200);
-      } catch {
-        setAutoplay((s) => autoplayTransition(s, { type: "UNMUTE_ATTEMPT_FAILED" }));
-      }
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [autoplay.state, autoplay.shouldAttemptUnmute]);
-
-  // Click on video area — unmute if muted, otherwise toggle play/pause
-  function handleScreenClick() {
-    const player = playerRef.current;
-
-    // Always send user interaction to autoplay state machine
-    if (autoplay.state === "muted") {
-      setAutoplay((s) => autoplayTransition(s, { type: "USER_INTERACTION" }));
-      if (player) {
-        player.unMute();
-        player.setVolume(100);
-        // If player was paused (shouldn't happen with muted autoplay, but just in case)
-        const state = player.getPlayerState?.();
-        if (state !== 1 && state !== 3) {
-          player.playVideo();
-        }
-      }
-      return;
-    }
-
-    if (!player?.getPlayerState) return;
-    const state = player.getPlayerState();
-    if (state === 1) {
-      player.pauseVideo();
-    } else {
-      player.playVideo();
-    }
-  }
+  }, [channelNumber, switchToChannel, nextChannel, prevChannel, handleScreenClick]);
 
   return (
     <div className="fixed inset-0 bg-black" onClick={handleScreenClick}>
@@ -418,8 +427,8 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
         </div>
       )}
 
-      {/* Broadcast lower-third — shows on mouse move or banner */}
-      {(mouseActive || showBanner) && activeVideo && (
+      {/* Broadcast lower-third — shows on mouse move or banner, hidden when classic HUD is active */}
+      {!FEATURES.CLASSIC_HUD && (mouseActive || showBanner) && activeVideo && (
         <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none">
           {/* Gradient fade from bottom */}
           <div className="h-32 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
@@ -493,28 +502,65 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
         <img src="/images/frogo/logo.png" alt="frogo.tv" className="h-6" />
       </div>
 
-      {/* On-screen remote — visible when mouse is moving or when clicked open */}
-      {(mouseActive || showRemote) && (
+      {/* On-screen controls — Classic HUD or minimal remote */}
+      {FEATURES.CLASSIC_HUD ? (
         <div
-          className="absolute inset-0 z-40"
+          className={`absolute inset-0 z-40 pointer-events-none transition-opacity duration-300 ${
+            mouseActive || hudHovered || showRemote ? "opacity-100" : "opacity-0"
+          }`}
           onClick={(e) => e.stopPropagation()}
         >
-          <OnScreenRemote
-            channel={channel}
-            channelIdx={channelIdx}
-            allChannels={channels}
-            activeVideo={activeVideo}
-            onSwitchChannel={(slug) => {
-              switchChannelBySlug(slug);
-              setShowRemote(false);
-            }}
-            onPrevChannel={prevChannel}
-            onNextChannel={nextChannel}
-            onTogglePlay={handleScreenClick}
-            onClose={() => setShowRemote(false)}
-            expanded={showRemote}
-          />
+          <div
+            className="pointer-events-auto"
+            onMouseEnter={() => setHudHovered(true)}
+            onMouseLeave={() => setHudHovered(false)}
+          >
+            <ClassicHUD
+              channel={channel}
+              channelIdx={channelIdx}
+              allChannels={channels}
+              activeVideo={activeVideo}
+              currentVideoIndex={currentVideoIndex}
+              playerRef={playerRef}
+              onSwitchChannel={(slug) => {
+                switchChannelBySlug(slug);
+                setShowRemote(false);
+              }}
+              onPrevChannel={prevChannel}
+              onNextChannel={nextChannel}
+              onNextVideo={handleEnded}
+              onPrevVideo={handlePrevVideo}
+              onTogglePlay={handleScreenClick}
+              onJumpToVideo={(index) => {
+                setCurrentVideoIndex(index);
+                setStartSeconds(0);
+              }}
+            />
+          </div>
         </div>
+      ) : (
+        (mouseActive || showRemote) && (
+          <div
+            className="absolute inset-0 z-40"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <OnScreenRemote
+              channel={channel}
+              channelIdx={channelIdx}
+              allChannels={channels}
+              activeVideo={activeVideo}
+              onSwitchChannel={(slug) => {
+                switchChannelBySlug(slug);
+                setShowRemote(false);
+              }}
+              onPrevChannel={prevChannel}
+              onNextChannel={nextChannel}
+              onTogglePlay={handleScreenClick}
+              onClose={() => setShowRemote(false)}
+              expanded={showRemote}
+            />
+          </div>
+        )
       )}
     </div>
   );
