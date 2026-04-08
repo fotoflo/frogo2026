@@ -108,3 +108,51 @@ body {
 .remote-noise {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
 }
+
+/* Broadcast lower-third */
+@keyframes lower-third-in {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes accent-stripe-in {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+.lower-third {
+  animation: lower-third-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.lower-third-stripe {
+  animation: accent-stripe-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+  transform-origin: bottom;
+}
+
+.lower-third-action {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.lower-third-action:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.15);
+}

@@ -6,6 +6,9 @@ export const alt = "Frogo.tv Channel";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
+// Revalidate daily — refreshes the thumbnail from the first video
+export const revalidate = 86400;
+
 export default async function OGImage({
   params,
 }: {
@@ -22,130 +25,158 @@ export default async function OGImage({
 
   const { data: videos } = await supabase
     .from("videos")
-    .select("title, thumbnail_url")
+    .select("youtube_id, title, thumbnail_url")
     .eq("channel_id", channel?.id ?? "")
     .order("position")
-    .limit(4);
+    .limit(1);
 
   const name = channel?.name ?? slug;
   const icon = channel?.icon ?? "📺";
-  const description = channel?.description ?? "";
-  const videoCount = videos?.length ?? 0;
+  const firstVideo = videos?.[0];
+  // Use maxresdefault for best quality, fall back to hqdefault
+  const thumbnailUrl = firstVideo
+    ? `https://img.youtube.com/vi/${firstVideo.youtube_id}/maxresdefault.jpg`
+    : null;
 
   return new ImageResponse(
     (
       <div
         style={{
-          background: "linear-gradient(135deg, #0d0d15 0%, #1a1a2e 40%, #0d0d15 100%)",
           width: "100%",
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          padding: "60px 70px",
           position: "relative",
+          overflow: "hidden",
+          background: "#0d0d15",
         }}
       >
-        {/* Accent glow */}
+        {/* Video thumbnail as full background */}
+        {thumbnailUrl && (
+          <img
+            src={thumbnailUrl}
+            alt=""
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        )}
+
+        {/* Dark gradient overlay — heavier at bottom for text readability */}
         <div
           style={{
             position: "absolute",
-            top: "-100px",
-            right: "-100px",
-            width: "400px",
-            height: "400px",
-            borderRadius: "50%",
-            background: "rgba(124, 92, 252, 0.12)",
-            filter: "blur(80px)",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            background: thumbnailUrl
+              ? "linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.15) 40%, rgba(0,0,0,0.7) 75%, rgba(0,0,0,0.9) 100%)"
+              : "linear-gradient(135deg, #0d0d15 0%, #1a1a2e 40%, #0d0d15 100%)",
           }}
         />
 
-        {/* Header: logo + branding */}
-        <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "48px" }}>
-          <div
-            style={{
-              fontSize: "32px",
-              color: "rgba(255,255,255,0.5)",
-              fontWeight: 600,
-              letterSpacing: "0.02em",
-            }}
-          >
+        {/* Top-left: frogo.tv branding */}
+        <div
+          style={{
+            position: "absolute",
+            top: "36px",
+            left: "44px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <div style={{ fontSize: "26px", color: "rgba(255,255,255,0.7)", fontWeight: 600 }}>
             frogo
           </div>
-          <div
-            style={{
-              fontSize: "32px",
-              color: "#7c5cfc",
-              fontWeight: 600,
-            }}
-          >
+          <div style={{ fontSize: "26px", color: "#7c5cfc", fontWeight: 600 }}>
             .tv
           </div>
         </div>
 
-        {/* Channel info */}
-        <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "24px", marginBottom: "20px" }}>
-            <span style={{ fontSize: "72px" }}>{icon}</span>
-            <div
-              style={{
-                fontSize: "64px",
-                fontWeight: 800,
-                color: "#ffffff",
-                lineHeight: 1.1,
-              }}
-            >
-              {name}
-            </div>
+        {/* Top-right: ON AIR badge */}
+        <div
+          style={{
+            position: "absolute",
+            top: "36px",
+            right: "44px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            background: "rgba(0,0,0,0.5)",
+            borderRadius: "8px",
+            padding: "8px 16px",
+          }}
+        >
+          <div
+            style={{
+              width: "10px",
+              height: "10px",
+              borderRadius: "50%",
+              background: "#ef4444",
+            }}
+          />
+          <div
+            style={{
+              fontSize: "18px",
+              color: "#ef4444",
+              fontWeight: 700,
+              letterSpacing: "0.12em",
+            }}
+          >
+            ON AIR
           </div>
-
-          {description && (
-            <div
-              style={{
-                fontSize: "28px",
-                color: "rgba(255,255,255,0.45)",
-                lineHeight: 1.4,
-                maxWidth: "800px",
-              }}
-            >
-              {description.length > 120 ? description.slice(0, 120) + "..." : description}
-            </div>
-          )}
         </div>
 
-        {/* Footer: video count + ON AIR badge */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div
-              style={{
-                width: "12px",
-                height: "12px",
-                borderRadius: "50%",
-                background: "#ef4444",
-              }}
-            />
-            <div
-              style={{
-                fontSize: "22px",
-                color: "#ef4444",
-                fontWeight: 700,
-                letterSpacing: "0.15em",
-                textTransform: "uppercase" as const,
-              }}
-            >
-              ON AIR
+        {/* Bottom: channel info bar */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            display: "flex",
+            alignItems: "flex-end",
+            padding: "0 44px 40px 44px",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+            {/* Channel */}
+            <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "56px" }}>{icon}</span>
+              <div
+                style={{
+                  fontSize: "52px",
+                  fontWeight: 800,
+                  color: "#ffffff",
+                  lineHeight: 1.1,
+                  textShadow: "0 2px 12px rgba(0,0,0,0.5)",
+                }}
+              >
+                {name}
+              </div>
             </div>
+            {/* Now playing label */}
+            {firstVideo && (
+              <div
+                style={{
+                  fontSize: "22px",
+                  color: "rgba(255,255,255,0.6)",
+                  textShadow: "0 1px 8px rgba(0,0,0,0.5)",
+                  marginLeft: "4px",
+                }}
+              >
+                Now playing: {firstVideo.title.length > 60 ? firstVideo.title.slice(0, 60) + "..." : firstVideo.title}
+              </div>
+            )}
           </div>
-
-          {videoCount > 0 && (
-            <div
-              style={{
-                fontSize: "20px",
-                color: "rgba(255,255,255,0.3)",
-              }}
-            >
-              {videoCount} video{videoCount !== 1 ? "s" : ""} in rotation
-            </div>
-          )}
         </div>
       </div>
     ),

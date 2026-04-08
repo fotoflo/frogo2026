@@ -14,6 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://frogo.tv"),
   title: "Frogo.tv — Watch Together",
   description:
     "Curated video channels you can watch together. Pair your phone as a remote.",

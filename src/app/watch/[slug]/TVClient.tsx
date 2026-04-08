@@ -418,27 +418,71 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
         </div>
       )}
 
-      {/* Now playing info — bottom left, shows on mouse move or banner */}
+      {/* Broadcast lower-third — shows on mouse move or banner */}
       {(mouseActive || showBanner) && activeVideo && (
-        <div className="absolute bottom-6 left-6 z-30 pointer-events-none">
-          <div className="bg-black/70 backdrop-blur-sm rounded-lg px-5 py-3 text-white max-w-lg">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-accent font-mono text-sm">{channelIdx + 1}</span>
-              <span className="text-xl">{channel.icon}</span>
-              <span className="font-semibold">{channel.name}</span>
+        <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none">
+          {/* Gradient fade from bottom */}
+          <div className="h-32 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+          <div className="bg-black/70 backdrop-blur-md px-0 pb-5 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="lower-third flex items-stretch max-w-2xl ml-6">
+              {/* Accent stripe */}
+              <div className="lower-third-stripe w-1 rounded-full bg-accent mr-4 self-stretch" />
+
+              {/* Info block */}
+              <div className="flex-1 min-w-0 py-1">
+                {/* Channel line */}
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-accent font-mono text-xs font-bold">{channelIdx + 1}</span>
+                  <span className="text-base">{channel.icon}</span>
+                  <span className="text-xs font-semibold text-white/60 uppercase tracking-wider">{channel.name}</span>
+                </div>
+                {/* Title */}
+                <div className="text-sm font-medium text-white/90 line-clamp-1 leading-snug">
+                  {activeVideo.title}
+                </div>
+                {/* Description */}
+                {activeVideo.description && (
+                  <div className="text-[11px] text-white/35 mt-0.5 line-clamp-1">{activeVideo.description}</div>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-2 ml-5 mr-6">
+                {/* Frogo — video page */}
+                <a
+                  href={`/watch/${channel.slug}/${activeVideo.id}`}
+                  className="lower-third-action"
+                  title="Video page"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/images/frogo/frogo-icon.png" alt="Frogo" className="w-4 h-4 opacity-70" />
+                </a>
+
+                {/* YouTube — original video */}
+                <a
+                  href={`https://www.youtube.com/watch?v=${activeVideo.youtube_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="lower-third-action"
+                  title="Watch on YouTube"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                  </svg>
+                </a>
+
+                {/* Next video */}
+                <button
+                  onClick={handleEnded}
+                  className="lower-third-action"
+                  title="Next video"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M4 5v14l12-7L4 5zm14 0v14h2V5h-2z"/>
+                  </svg>
+                </button>
+              </div>
             </div>
-            <a
-              href={`https://www.youtube.com/watch?v=${activeVideo.youtube_id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-white/80 line-clamp-1 hover:text-white hover:underline pointer-events-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {activeVideo.title}
-            </a>
-            {activeVideo.description && (
-              <div className="text-xs text-white/40 mt-0.5 line-clamp-1">{activeVideo.description}</div>
-            )}
           </div>
         </div>
       )}
