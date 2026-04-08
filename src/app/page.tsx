@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase";
+import { isMobileRequest } from "@/lib/mobile-detect";
 
 export default async function Home() {
+  if (await isMobileRequest()) {
+    redirect("/mobile");
+  }
+
   const supabase = createServiceClient();
 
   // Get the first channel

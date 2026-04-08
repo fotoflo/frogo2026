@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase";
+import { isMobileRequest } from "@/lib/mobile-detect";
 import WatchClient from "./WatchClient";
 
 export async function generateMetadata({
@@ -82,6 +83,9 @@ export default async function WatchPage({
   params: Promise<{ slug: string; videoId: string }>;
 }) {
   const { slug, videoId } = await params;
+  if (await isMobileRequest()) {
+    redirect(`/mobile/watch/${slug}/${videoId}`);
+  }
   const data = await getData(slug, videoId);
   if (!data) notFound();
 

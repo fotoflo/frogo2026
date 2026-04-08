@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 interface SearchResultChannel {
@@ -254,6 +255,14 @@ function PairContent() {
               </div>
             </details>
           )}
+
+          {/* Watch on phone link */}
+          <Link
+            href="/mobile"
+            className="inline-block mt-6 text-xs text-white/30 hover:text-white/60 transition-colors"
+          >
+            Or just watch on this device &rarr;
+          </Link>
         </div>
       </div>
     );
@@ -294,6 +303,12 @@ function PairContent() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/mobile"
+            className="px-3 py-1.5 rounded-lg text-xs text-white/50 hover:text-white/80 hover:bg-white/5 transition-all"
+          >
+            Watch
+          </Link>
           <button
             onClick={() => setShowSearch(!showSearch)}
             aria-expanded={showSearch}

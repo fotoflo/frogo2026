@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase";
+import { isMobileRequest } from "@/lib/mobile-detect";
 
 export async function generateMetadata({
   params,
@@ -62,6 +63,9 @@ export default async function ChannelPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  if (await isMobileRequest()) {
+    redirect(`/mobile/channel/${slug}`);
+  }
   const channel = await getChannel(slug);
   if (!channel) notFound();
 

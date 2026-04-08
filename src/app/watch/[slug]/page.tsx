@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase";
 import { filterAvailableVideos } from "@/lib/youtube-check";
+import { isMobileRequest } from "@/lib/mobile-detect";
 import TVClient from "./TVClient";
 
 export async function generateMetadata({
@@ -104,6 +105,9 @@ export default async function WatchChannelPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  if (await isMobileRequest()) {
+    redirect(`/mobile/channel/${slug}`);
+  }
   const data = await getAllChannelData(slug);
   if (!data) notFound();
 

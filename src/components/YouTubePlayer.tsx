@@ -41,6 +41,10 @@ interface YouTubePlayerProps {
   onReady?: (player: any) => void;
   onEnded?: () => void;
   onError?: (errorCode: number) => void;
+  /** Show YouTube player controls (default: false for TV mode) */
+  controls?: boolean;
+  /** Mute on start (default: true for TV autoplay) */
+  muted?: boolean;
 }
 
 export default function YouTubePlayer({
@@ -50,6 +54,8 @@ export default function YouTubePlayer({
   onReady,
   onEnded,
   onError,
+  controls = false,
+  muted = true,
 }: YouTubePlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,6 +74,8 @@ export default function YouTubePlayer({
 
   const initialVideoId = useRef(videoId);
   const initialStart = useRef(startSeconds);
+  const initialControls = useRef(controls);
+  const initialMuted = useRef(muted);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -91,22 +99,24 @@ export default function YouTubePlayer({
         videoId: initialVideoId.current,
         playerVars: {
           autoplay: 1,
-          mute: 1,
+          mute: initialMuted.current ? 1 : 0,
           modestbranding: 1,
           rel: 0,
           playsinline: 1,
-          controls: 0,
-          disablekb: 1,
+          controls: initialControls.current ? 1 : 0,
+          disablekb: initialControls.current ? 0 : 1,
           iv_load_policy: 3,
-          fs: 0,
+          fs: initialControls.current ? 1 : 0,
           start: initialStart.current ? Math.floor(initialStart.current) : undefined,
         },
         events: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onReady: (e: any) => {
             const player = e.target;
-            // Ensure muted autoplay works across all browsers
-            player.mute();
+            if (initialMuted.current) {
+              // Ensure muted autoplay works across all browsers
+              player.mute();
+            }
             player.playVideo();
             onReadyRef.current?.(player);
           },
@@ -150,7 +160,7 @@ export default function YouTubePlayer({
   return (
     <div className="relative w-full h-full bg-black">
       <div ref={wrapperRef} className="w-full h-full" />
-      <div className="absolute inset-0 z-10" />
+      {!initialControls.current && <div className="absolute inset-0 z-10" />}
     </div>
   );
 }

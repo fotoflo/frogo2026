@@ -29,15 +29,19 @@ export default function MobileWatchClient({
   return (
     <div className="max-w-lg mx-auto">
       {/* Full-width player */}
-      <YouTubePlayer
-        videoId={video.youtube_id}
-        onReady={handleReady}
-        onEnded={() => {
-          if (nextVideo) {
-            window.location.href = `/mobile/watch/${channel.slug}/${nextVideo.id}`;
-          }
-        }}
-      />
+      <div className="aspect-video w-full">
+        <YouTubePlayer
+          videoId={video.youtube_id}
+          controls
+          muted={false}
+          onReady={handleReady}
+          onEnded={() => {
+            if (nextVideo) {
+              window.location.href = `/mobile/watch/${channel.slug}/${nextVideo.id}`;
+            }
+          }}
+        />
+      </div>
 
       <div className="px-4 py-4">
         <Link
