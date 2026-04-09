@@ -31,6 +31,14 @@ export async function generateMetadata({
   };
 }
 
+interface ChannelVideo {
+  id: string;
+  title: string;
+  description: string;
+  thumbnail_url: string;
+  duration_seconds: number;
+}
+
 async function getChannel(slug: string) {
   const supabase = createServiceClient();
   const { data: channel } = await supabase
@@ -46,7 +54,7 @@ async function getChannel(slug: string) {
     .eq("channel_id", channel.id)
     .order("position");
 
-  return { ...channel, videos: videos ?? [] };
+  return { ...channel, videos: (videos ?? []) as ChannelVideo[] };
 }
 
 function formatDuration(seconds: number) {
@@ -95,7 +103,7 @@ export default async function ChannelPage({
       </div>
 
       <div className="space-y-3">
-        {channel.videos.map((video: any, i: number) => (
+        {channel.videos.map((video, i: number) => (
           <Link
             key={video.id}
             href={`/watch/${channel.slug}/${video.id}`}

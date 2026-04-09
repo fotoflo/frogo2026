@@ -179,13 +179,13 @@ describe("pairing e2e", () => {
     expect(cmdErr).toBeNull();
 
     // Wait for Realtime delivery
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 4000));
 
     expect(receivedCommands).toContain("next");
 
     // Cleanup subscription
     anon.removeChannel(channel);
-  }, 15000);
+  }, 20000);
 
   it("sends multiple commands in sequence", async () => {
     const svc = makeServiceClient();

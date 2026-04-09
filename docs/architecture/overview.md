@@ -19,8 +19,8 @@ Frogo2026 is an always-on TV experience. Users tune into curated channels that b
        │                    │ /api/network-ip
 ┌──────┴───────┐
 │  Mobile      │
-│  Browser     │
-│  (Remote)    │
+│  Browser     │──── /pair  (phone remote, writes commands to Supabase)
+│              │──── /mobile (standalone viewer: browse + watch on-demand)
 └──────────────┘
 ```
 
@@ -43,8 +43,11 @@ Links a TV player to a phone remote.
 
 ## Core Flows
 
+### Mobile Detection
+Server components on `/`, `/watch/[slug]`, `/watch/[slug]/[videoId]`, and `/channel/[slug]` call `isMobileRequest()` (reads the `User-Agent` header) before any DB queries. Mobile browsers are redirected to their `/mobile` equivalents. Desktop browsers proceed to the TV flow. See [Mobile Experience](mobile-experience.md) for full details.
+
 ### TV Playback
-1. `/` redirects to the first channel (`/watch/[slug]`)
+1. `/` redirects mobile users to `/mobile`; desktop browsers redirect to the first channel (`/watch/[slug]`)
 2. Server component fetches **all channels** + their videos in parallel; filters unavailable via oEmbed
 3. `TVClient` receives all channels; channel switching is client-side state (no navigation)
 4. `TVClient` calculates broadcast position from half-hour schedule boundaries
@@ -62,6 +65,7 @@ Links a TV player to a phone remote.
 See also:
 - [TV Mode](tv-mode.md) — schedule system, client-side channel switching, YouTube player, on-screen chrome
 - [Pairing](pairing.md) — QR pairing flow, command protocol, Realtime subscription, e2e tests
+- [Mobile Experience](mobile-experience.md) — UA detection, /mobile route tree, on-demand playback
 
 ### OG Image Generation
 Each channel has a dynamic OpenGraph image (1200x630 JPEG) generated via `next/og` and cached in Supabase Storage. See [OG Images](og-images.md) for the full caching and compression pipeline.
@@ -85,8 +89,13 @@ The `AnalyticsProvider` client component wraps the app and fires `analytics.page
 
 ## Key Files
 
-- `src/app/page.tsx` -- Redirects to first channel
-- `src/app/watch/[slug]/page.tsx` -- Channel watch server component (video filtering)
+- `src/app/page.tsx` -- Redirects mobile to /mobile, desktop to first channel
+- `src/lib/mobile-detect.ts` -- Server-side UA detection (`isMobileRequest()`)
+- `src/app/mobile/page.tsx` -- Mobile channel browser
+- `src/app/mobile/channel/[slug]/page.tsx` -- Mobile channel playlist
+- `src/app/mobile/watch/[slug]/[videoId]/page.tsx` -- Mobile video watch (server)
+- `src/app/mobile/watch/[slug]/[videoId]/MobileWatchClient.tsx` -- Mobile video player (client)
+- `src/app/watch/[slug]/page.tsx` -- Channel watch server component (video filtering, mobile redirect)
 - `src/app/watch/[slug]/TVClient.tsx` -- Fullscreen TV client (schedule, remote, QR)
 - `src/app/watch/[slug]/opengraph-image.tsx` -- Dynamic OG image per channel
 - `src/app/pair/page.tsx` -- Phone remote UI
@@ -94,7 +103,7 @@ The `AnalyticsProvider` client component wraps the app and fires `analytics.page
 - `src/lib/youtube-check.ts` -- YouTube oEmbed availability check
 - `src/lib/supabase.ts` -- Database client
 - `src/lib/types.ts` -- TypeScript interfaces
-- `src/components/YouTubePlayer.tsx` -- YouTube player (no controls, overlay)
+- `src/components/YouTubePlayer.tsx` -- YouTube player; `controls` and `muted` props switch between TV and mobile modes
 - `src/components/MiniQR.tsx` -- QR code overlay on TV screen
 - `src/components/OnScreenRemote.tsx` -- On-screen remote overlay (mini + expanded)
 - `src/app/api/pair/route.ts` -- Session creation

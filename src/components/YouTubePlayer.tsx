@@ -160,7 +160,7 @@ export default function YouTubePlayer({
   return (
     <div className="relative w-full h-full bg-black">
       <div ref={wrapperRef} className="w-full h-full" />
-      {!initialControls.current && <div className="absolute inset-0 z-10" />}
+      {!controls && <div className="absolute inset-0 z-10" />}
     </div>
   );
 }

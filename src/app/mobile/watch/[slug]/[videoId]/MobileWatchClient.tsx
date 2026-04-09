@@ -5,10 +5,29 @@ import Link from "next/link";
 import Image from "next/image";
 import YouTubePlayer from "@/components/YouTubePlayer";
 
+interface Video {
+  id: string;
+  title: string;
+  description?: string;
+  youtube_id: string;
+  thumbnail_url: string;
+}
+
+interface Channel {
+  slug: string;
+  name: string;
+  icon?: string;
+}
+
+interface YTPlayer {
+  loadVideoById: (opts: { videoId: string; startSeconds?: number }) => void;
+  destroy: () => void;
+}
+
 interface MobileWatchClientProps {
-  channel: any;
-  video: any;
-  playlist: any[];
+  channel: Channel;
+  video: Video;
+  playlist: Video[];
 }
 
 export default function MobileWatchClient({
@@ -16,13 +35,13 @@ export default function MobileWatchClient({
   video,
   playlist,
 }: MobileWatchClientProps) {
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<YTPlayer | null>(null);
 
-  const handleReady = useCallback((player: any) => {
+  const handleReady = useCallback((player: YTPlayer) => {
     playerRef.current = player;
   }, []);
 
-  const currentIdx = playlist.findIndex((v: any) => v.id === video.id);
+  const currentIdx = playlist.findIndex((v) => v.id === video.id);
   const nextVideo = playlist[currentIdx + 1];
   const prevVideo = playlist[currentIdx - 1];
 
@@ -82,8 +101,8 @@ export default function MobileWatchClient({
         </h3>
         <div className="space-y-2">
           {playlist
-            .filter((v: any) => v.id !== video.id)
-            .map((v: any) => (
+            .filter((v) => v.id !== video.id)
+            .map((v) => (
               <Link
                 key={v.id}
                 href={`/mobile/watch/${channel.slug}/${v.id}`}
