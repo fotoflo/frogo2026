@@ -133,7 +133,7 @@ export function adminEditHref<C extends ChannelLike>(
   channel: C,
   allChannels: readonly C[]
 ): string {
-  return `/admin/channels/${joinPath(buildChannelPath(channel, allChannels))}/edit`;
+  return `/admin/channels/edit/${joinPath(buildChannelPath(channel, allChannels))}`;
 }
 
 /** Video page is now slug-independent: lookup is by video id. */

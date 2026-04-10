@@ -2,14 +2,13 @@ import { ImageResponse } from "next/og";
 import { createServiceClient } from "@/lib/supabase";
 import sharp from "sharp";
 
+// This is a Route Handler (not the Next metadata opengraph-image convention)
+// because catch-all segments can't host opengraph-image.tsx. generateMetadata
+// in /watch/[...slug]/page.tsx points openGraph.images at /api/og/<path>.
 export const runtime = "nodejs";
-export const alt = "Frogo.tv Channel";
-export const size = { width: 1200, height: 630 };
-export const contentType = "image/jpeg";
-
-// Check often — the cache logic below handles staleness via first-video-id
 export const revalidate = 300;
 
+const SIZE = { width: 1200, height: 630 };
 const BUCKET = "og-images";
 
 /** HEAD-check a thumbnail URL; returns the URL if reachable, null otherwise */
@@ -34,11 +33,10 @@ async function compressToJpeg(input: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-export default async function OGImage({
-  params,
-}: {
-  params: Promise<{ slug: string[] }>;
-}) {
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ slug: string[] }> }
+) {
   const { slug: segments } = await params;
   const slug = segments.join("/");
   const supabase = createServiceClient();
@@ -218,7 +216,7 @@ export default async function OGImage({
         />
       </div>
     ),
-    { ...size }
+    { ...SIZE }
   );
 
   // Compress the PNG with sharp before caching

@@ -164,7 +164,7 @@ export default function ChannelEditor({
           res.slug !== channel.slug ||
           meta.parent_id !== channel.parent_id
         ) {
-          router.push(`/admin/channels/${res.path}/edit`);
+          router.push(`/admin/channels/edit/${res.path}`);
         } else {
           router.refresh();
         }

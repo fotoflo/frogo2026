@@ -29,6 +29,14 @@ export async function generateMetadata({
   const title = `${channel.icon} ${channel.name} — Frogo.tv`;
   const description =
     channel.description || `Watch ${channel.name} on Frogo.tv`;
+  // OG image lives at a real API route — the opengraph-image.tsx metadata
+  // file convention can't be nested inside a catch-all segment.
+  const ogImage = {
+    url: `/api/og/${slug.join("/")}`,
+    width: 1200,
+    height: 630,
+    alt: `${channel.name} — Frogo.tv`,
+  };
 
   return {
     title,
@@ -38,11 +46,13 @@ export async function generateMetadata({
       description,
       siteName: "Frogo.tv",
       type: "video.other",
+      images: [ogImage],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
+      images: [ogImage.url],
     },
   };
 }

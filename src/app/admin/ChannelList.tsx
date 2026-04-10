@@ -155,7 +155,7 @@ function SortableChannelRow({
 
         {/* Edit link */}
         <Link
-          href={`/admin/channels/${channel.path}/edit`}
+          href={`/admin/channels/edit/${channel.path}`}
           className="px-3 py-1.5 text-sm rounded border border-neutral-700 hover:border-neutral-500 hover:bg-neutral-800 transition flex-shrink-0"
         >
           Edit

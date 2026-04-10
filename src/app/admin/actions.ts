@@ -72,7 +72,7 @@ export async function createChannel(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/");
-  redirect(`/admin/channels/${path}/edit`);
+  redirect(`/admin/channels/edit/${path}`);
 }
 
 export async function updateChannel(
@@ -134,7 +134,7 @@ export async function updateChannel(
   ).join("/");
 
   revalidatePath("/admin");
-  revalidatePath(`/admin/channels/${path}/edit`);
+  revalidatePath(`/admin/channels/edit/${path}`);
   revalidatePath("/");
   return { slug: data.slug as string, path };
 }

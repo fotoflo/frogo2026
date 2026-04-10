@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   // just trigger the generation
   const results = await Promise.allSettled(
     paths.map(async (path) => {
-      const url = `${origin}/watch/${path}/opengraph-image`;
+      const url = `${origin}/api/og/${path}`;
       const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
       return { path, status: res.status };
     })
