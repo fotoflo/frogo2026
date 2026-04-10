@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   const { data: videos } = await supabase
     .from("videos")
-    .select("id, title, description, thumbnail_url, duration_seconds, channel_id, channels(slug, name, icon)")
+    .select("id, title, description, thumbnail_url, duration_seconds, channel_id, channels(id, slug, name, icon)")
     .or(`title.ilike.%${q}%,description.ilike.%${q}%`)
     .order("title")
     .limit(20);

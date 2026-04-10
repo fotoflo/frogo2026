@@ -11,6 +11,7 @@ declare global {
 }
 
 const YT_ENDED = 0;
+const YT_PLAYING = 1;
 
 let ytScriptAdded = false;
 const ytReadyCallbacks: (() => void)[] = [];
@@ -36,6 +37,13 @@ function ensureYTApi(callback: () => void) {
 interface YouTubePlayerProps {
   videoId: string;
   startSeconds?: number;
+  /**
+   * Stop playback and fire onEnded when currentTime reaches this value.
+   * Used for curated trim points — lets us cut off intros/outros without
+   * waiting for the native YouTube video to end. If null/undefined, plays
+   * to the natural end of the video.
+   */
+  endSeconds?: number | null;
   onStateChange?: (state: number) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onReady?: (player: any) => void;
@@ -50,6 +58,7 @@ interface YouTubePlayerProps {
 export default function YouTubePlayer({
   videoId,
   startSeconds,
+  endSeconds,
   onStateChange,
   onReady,
   onEnded,
@@ -60,16 +69,19 @@ export default function YouTubePlayer({
   const wrapperRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
+  const endWatcherRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const onReadyRef = useRef(onReady);
   const onStateChangeRef = useRef(onStateChange);
   const onEndedRef = useRef(onEnded);
   const onErrorRef = useRef(onError);
+  const endSecondsRef = useRef(endSeconds);
   useLayoutEffect(() => {
     onReadyRef.current = onReady;
     onStateChangeRef.current = onStateChange;
     onEndedRef.current = onEnded;
     onErrorRef.current = onError;
+    endSecondsRef.current = endSeconds;
   });
 
   const initialVideoId = useRef(videoId);
@@ -124,7 +136,32 @@ export default function YouTubePlayer({
           onStateChange: (e: any) => {
             onStateChangeRef.current?.(e.data);
             if (e.data === YT_ENDED) {
+              if (endWatcherRef.current) {
+                clearInterval(endWatcherRef.current);
+                endWatcherRef.current = null;
+              }
               onEndedRef.current?.();
+              return;
+            }
+            // Start / stop the trim-end watcher based on play state.
+            if (e.data === YT_PLAYING) {
+              if (!endWatcherRef.current) {
+                endWatcherRef.current = setInterval(() => {
+                  const end = endSecondsRef.current;
+                  const p = playerRef.current;
+                  if (!end || !p?.getCurrentTime) return;
+                  if (p.getCurrentTime() >= end) {
+                    clearInterval(endWatcherRef.current!);
+                    endWatcherRef.current = null;
+                    try { p.pauseVideo?.(); } catch {}
+                    onEndedRef.current?.();
+                  }
+                }, 500);
+              }
+            } else if (endWatcherRef.current) {
+              // Paused, buffering, cued — stop polling until playback resumes.
+              clearInterval(endWatcherRef.current);
+              endWatcherRef.current = null;
             }
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,6 +171,10 @@ export default function YouTubePlayer({
     });
 
     return () => {
+      if (endWatcherRef.current) {
+        clearInterval(endWatcherRef.current);
+        endWatcherRef.current = null;
+      }
       playerRef.current?.destroy?.();
       playerRef.current = null;
       // Clean up any remaining DOM

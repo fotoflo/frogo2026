@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { buildChannelPath } from "@/lib/channel-paths";
 
 /**
- * POST /api/og-warm { slug: "philosophy" }
+ * POST /api/og-warm { path: "business/startups" }
  * or
  * POST /api/og-warm  (no body — warms all channels)
  *
@@ -11,21 +12,27 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   const origin = req.nextUrl.origin;
 
-  let slugs: string[];
+  let paths: string[];
 
   try {
     const body = await req.json().catch(() => null);
-    if (body?.slug) {
-      slugs = [body.slug];
+    const { createServiceClient } = await import("@/lib/supabase");
+    const supabase = createServiceClient();
+    const { data: allChannels } = await supabase
+      .from("channels")
+      .select("id, slug, parent_id, position, name")
+      .order("position", { ascending: true, nullsFirst: false })
+      .order("name");
+
+    if (body?.path) {
+      paths = [body.path];
+    } else if (body?.slug) {
+      // Back-compat: resolve a root slug to its path
+      paths = [body.slug];
     } else {
-      // Warm all channels
-      const { createServiceClient } = await import("@/lib/supabase");
-      const supabase = createServiceClient();
-      const { data: channels } = await supabase
-        .from("channels")
-        .select("slug")
-        .order("name");
-      slugs = (channels ?? []).map((c) => c.slug);
+      paths = (allChannels ?? []).map((c) =>
+        buildChannelPath(c, allChannels ?? []).join("/")
+      );
     }
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
@@ -34,15 +41,15 @@ export async function POST(req: NextRequest) {
   // Fire requests in parallel — don't await the image response body,
   // just trigger the generation
   const results = await Promise.allSettled(
-    slugs.map(async (slug) => {
-      const url = `${origin}/watch/${slug}/opengraph-image`;
+    paths.map(async (path) => {
+      const url = `${origin}/watch/${path}/opengraph-image`;
       const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
-      return { slug, status: res.status };
+      return { path, status: res.status };
     })
   );
 
   const warmed = results.map((r, i) => ({
-    slug: slugs[i],
+    path: paths[i],
     ok: r.status === "fulfilled" && r.value.status === 200,
   }));
 

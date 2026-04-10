@@ -70,7 +70,7 @@ export default function SearchBar() {
             return (
               <li key={v.id} role="option" aria-selected={false}>
                 <Link
-                  href={`/watch/${ch?.slug}/${v.id}`}
+                  href={`/v/${v.id}`}
                   onClick={() => { setOpen(false); setQuery(""); }}
                   className="flex gap-2 p-2 hover:bg-white/5 transition-colors"
                 >

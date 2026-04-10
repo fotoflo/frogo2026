@@ -1,13 +1,25 @@
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase";
+import { mobileChannelHref } from "@/lib/channel-paths";
 
-async function getChannels() {
+interface MobileChannelListItem {
+  id: string;
+  slug: string;
+  parent_id: string | null;
+  name: string;
+  description: string;
+  icon: string;
+  videos?: { count: number }[] | null;
+}
+
+async function getChannels(): Promise<MobileChannelListItem[]> {
   const supabase = createServiceClient();
   const { data: channels } = await supabase
     .from("channels")
-    .select("*, videos(count)")
+    .select("id, slug, parent_id, name, description, icon, videos(count)")
+    .order("position", { ascending: true, nullsFirst: false })
     .order("name");
-  return channels ?? [];
+  return (channels as MobileChannelListItem[] | null) ?? [];
 }
 
 export default async function MobileBrowse() {
@@ -21,10 +33,10 @@ export default async function MobileBrowse() {
       </p>
 
       <div className="space-y-3">
-        {channels.map((channel: any) => (
+        {channels.map((channel) => (
           <Link
             key={channel.id}
-            href={`/mobile/channel/${channel.slug}`}
+            href={mobileChannelHref(channel, channels)}
             className="flex items-center gap-4 rounded-xl border border-card-border bg-card-bg p-4 active:bg-accent/5 transition-colors"
           >
             <span className="text-3xl">{channel.icon}</span>

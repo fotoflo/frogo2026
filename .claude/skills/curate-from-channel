@@ -1,0 +1,152 @@
+# Curate From Channel
+
+Add a new Frogo channel built around a known YouTube creator, series, or genre (e.g. "make an analog horror channel starting with The Boiled One"). Different from `curate-playlist`, which is purely topic-based — this one centers a specific creator/series and pulls their actual catalog plus genre-adjacent picks.
+
+Use when the user names a creator, channel, series, or scene and asks to add it (e.g. "add a channel for X", "make a Y channel starting with Z", "build a playlist around <creator>").
+
+## Two phases — keep them separate
+
+This skill has **two distinct phases** that look similar but use different tools and serve different purposes. Mixing them up is what wastes time.
+
+| Phase | Tool | Purpose | What you're looking for |
+|---|---|---|---|
+| **Discovery** | WebSearch + WebFetch | Editorial taste | Which videos are *canonical*, *viral*, *the entry point*. Adjacent creators in the same scene. Cultural context for descriptions. |
+| **Extraction** | `curl` + `grep` | Raw data | Video IDs, titles, durations. |
+
+**The mistake**: searching wikis/fan pages for video IDs. They never have them. Use them only for editorial guidance.
+**The fix**: get the editorial verdict from wikis, then go to YouTube directly for the data.
+
+## Steps
+
+### 1. Discovery (research, parallel)
+
+Fire 2-3 searches in parallel to learn the scene:
+
+```
+WebSearch: "best <genre> youtube series 2025"           → adjacent creators worth padding with
+WebSearch: "<creator> most popular videos"              → which video is the anchor
+WebSearch: "<series> explained"                          → cultural context for descriptions
+```
+
+Then optionally WebFetch one or two of the better-looking results (Collider lists, Tubefilter articles, Wikipedia) for editorial summaries. **Stop chasing wikis after the second 403** — they block bots aggressively.
+
+What you should walk away with:
+- The creator's `@handle` (or channel ID)
+- Which 1-2 videos are the canonical anchor (usually the viral one)
+- 1-2 genre-adjacent creators to pad with if the main channel is thin
+- A few sentences of context to write good descriptions
+
+What you should *not* try to extract from research: video IDs, durations, full episode lists. Those come from YouTube directly.
+
+### 2. Extraction — scrape video IDs from each channel
+
+```bash
+curl -sL "https://www.youtube.com/@<handle>" | grep -oE '"videoId":"[^"]*"' | sort -u
+```
+
+The channel page HTML embeds 12-30 most recent video IDs inline. For shorts, also try `/@<handle>/shorts`. For full back catalog, use the RSS feed if you know the channel ID:
+
+```bash
+curl -sL "https://www.youtube.com/feeds/videos.xml?channel_id=<UC...>"
+```
+
+### 3. Extraction — titles + durations in parallel
+
+Two reliable sources, both keyless:
+
+**Title via noembed:**
+```bash
+curl -s "https://noembed.com/embed?url=https://www.youtube.com/watch?v=<id>" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin).get('title','UNAVAILABLE'))"
+```
+
+**Duration via watch page HTML:**
+```bash
+curl -s "https://www.youtube.com/watch?v=<id>" \
+  | grep -oE '"lengthSeconds":"[0-9]+"' | head -1 | grep -oE '[0-9]+'
+```
+
+Parallelize with `xargs -P 8` — 30 videos in ~4s instead of ~30s sequential:
+
+```bash
+echo "id1 id2 id3 ..." | tr ' ' '\n' | xargs -I{} -P 8 sh -c '
+  TITLE=$(curl -s "https://noembed.com/embed?url=https://www.youtube.com/watch?v={}" \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get(\"title\",\"\"))")
+  DUR=$(curl -s "https://www.youtube.com/watch?v={}" \
+    | grep -oE "\"lengthSeconds\":\"[0-9]+\"" | head -1 | grep -oE "[0-9]+")
+  echo "{}|$DUR|$TITLE"
+'
+```
+
+A noembed 200 also confirms availability — no separate check needed.
+
+### 4. Curate (use the discovery phase here!)
+
+This is where the Phase-1 research pays off. Filter the raw scrape:
+
+- **Lead with the canonical anchor.** The discovery phase told you which video is the entry point — that's position 1. Don't just sort by upload date.
+- Drop sub-30s art shorts and channel trailers
+- Drop ads / merch promos (e.g. "PLUSH ADVERT")
+- If the main channel is thin (<6 long-form videos), pull 4-6 more from the genre-adjacent creators discovery surfaced. Scrape *their* channels the same way.
+- Write descriptions using the cultural context from research, not just titles. ("Doctor Nowhere's viral analog horror — a hijacked broadcast reveals PHEN-228" is better than "A short horror video.")
+
+### 5. Insert into Supabase
+
+Single batched JS-client call beats 12 individual `curl -X POST`s:
+
+```bash
+node -e "
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(
+  'https://cnnttsihfbyxhzlmzdtv.supabase.co',
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+async function run() {
+  const { data: ch } = await supabase
+    .from('channels')
+    .upsert({ name: '...', slug: '...', description: '...', icon: '📼' }, { onConflict: 'slug' })
+    .select('id').single();
+  const videos = [ /* { youtube_id, title, description, duration_seconds, position } */ ];
+  await supabase.from('videos').upsert(
+    videos.map(v => ({
+      channel_id: ch.id,
+      ...v,
+      thumbnail_url: 'https://img.youtube.com/vi/' + v.youtube_id + '/maxresdefault.jpg',
+    })),
+    { onConflict: 'channel_id,youtube_id' }
+  );
+}
+run();
+"
+```
+
+Read keys from `/Users/fotoflo/dev/Frogo2026/.env.local`.
+
+### 6. Verify
+
+```bash
+curl -s "https://tv.aimhuge.com/watch/<slug>" -o /dev/null -w "%{http_code}"
+```
+
+200 = live. Report URL to the user.
+
+## Anti-patterns
+
+- ❌ Searching wikis for *video IDs* — they don't embed them. Search wikis for *editorial guidance* instead.
+- ❌ Chasing fandom/tvtropes/knowyourmeme past two 403 responses — they block bots; pivot to a different source.
+- ❌ Sequential `for vid in ...; do curl ...` — always parallelize with `xargs -P`.
+- ❌ Parsing `youtube.com/@handle` via WebFetch — returns minified JS, not rendered HTML. Use `curl | grep` directly.
+- ❌ Skipping discovery entirely and just dumping the channel's most recent uploads in upload order — you'll miss the canonical anchor and lose cultural context for descriptions.
+
+## Speed budget
+
+Target: ~8-12 tool calls total.
+- Discovery: 2-3 WebSearches in parallel + 0-2 WebFetches = 3-5 calls
+- Extraction: 1 channel scrape + 1 parallel metadata fan-out = 2 calls
+- Insert + verify: 2 calls
+
+If you're at 15+ calls and still researching, you're chasing wikis. Stop and pivot to direct scraping.
+
+## Speed tip: Haiku subagent for repeat runs
+
+The extraction + insert phases are pure mechanism. For batch jobs (e.g. "add 3 channels"), spawn this as a `general-purpose` subagent with `model: haiku` per channel and run them in parallel.

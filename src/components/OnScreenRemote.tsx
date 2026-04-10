@@ -16,7 +16,7 @@ interface OnScreenRemoteProps {
   channelIdx: number;
   allChannels: Channel[];
   activeVideo: VideoInfo | null;
-  onSwitchChannel: (slug: string) => void;
+  onSwitchChannel: (channelId: string) => void;
   onPrevChannel: () => void;
   onNextChannel: () => void;
   onTogglePlay: () => void;
@@ -90,7 +90,7 @@ export default function OnScreenRemote({
           {allChannels.map((ch: Channel, i: number) => (
             <button
               key={ch.id}
-              onClick={() => onSwitchChannel(ch.slug)}
+              onClick={() => onSwitchChannel(ch.id)}
               aria-current={ch.id === channel.id ? "true" : undefined}
               className={`w-full text-left flex items-center gap-3 px-5 py-3 transition-colors ${
                 ch.id === channel.id

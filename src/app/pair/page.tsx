@@ -8,6 +8,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 interface SearchResultChannel {
+  id?: string;
   slug?: string;
   icon?: string;
   name?: string;
@@ -355,7 +356,7 @@ function PairContent() {
                   <button
                     onClick={() => {
                       const ch = v.channels;
-                      if (ch?.slug) sendCommand(`navigate_${ch.slug}`);
+                      if (ch?.id) sendCommand(`navigate_${ch.id}`);
                       setShowSearch(false);
                       setSearchQuery("");
                     }}

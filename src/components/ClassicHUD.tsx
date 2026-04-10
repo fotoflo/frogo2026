@@ -14,6 +14,9 @@ interface Video {
 interface Channel {
   id: string;
   slug: string;
+  parent_id?: string | null;
+  /** Root-to-leaf slug segments. Used for display + href building. */
+  path?: string[];
   name: string;
   icon: string;
   videos: Video[];
@@ -29,7 +32,7 @@ interface ClassicHUDProps {
   activeVideo: Video | null;
   currentVideoIndex: number;
   playerRef: React.RefObject<YTPlayer | null>;
-  onSwitchChannel: (slug: string) => void;
+  onSwitchChannel: (channelId: string) => void;
   onPrevChannel: () => void;
   onNextChannel: () => void;
   onNextVideo: () => void;
@@ -258,7 +261,7 @@ export default function ClassicHUD({
                 return (
                   <button
                     key={ch.id}
-                    onClick={() => onSwitchChannel(ch.slug)}
+                    onClick={() => onSwitchChannel(ch.id)}
                     aria-label={`Switch to ${ch.name}${isPlaying ? " (currently playing)" : ""}`}
                     aria-current={isPlaying ? "true" : undefined}
                     className={`hud-channel-tile group relative rounded-lg overflow-hidden ${
