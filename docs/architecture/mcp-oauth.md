@@ -17,6 +17,7 @@ The goal is multi-tenant channel curation: anyone with a Claude instance can reg
 - `src/lib/supabase.ts` — provides `createServiceClient()` used by every OAuth route for DB writes (no RLS policies exist on the MCP tables).
 - `src/lib/supabase-server.ts` — provides the cookie-aware server client used in `/api/oauth/consent` to read the current Supabase user via `supabase.auth.getUser()`.
 - `src/app/api/auth/signin/route.ts` — existing Frogo Google signin. Reused verbatim by the authorize endpoint via the `next` query param.
+- `src/app/api/mcp/route.ts` — MCP Streamable HTTP endpoint. JSON-RPC 2.0 over POST. Validates the bearer via `resolveBearerToken()`, enforces `frogo:curate` scope, exposes the channel curation tools below.
 
 ## OAuth Flow
 
@@ -91,11 +92,63 @@ The goal is multi-tenant channel curation: anyone with a Claude instance can reg
 - **TTLs:** authorize session 600s, auth code 60s, access token 30 days. All enforced by `expires_at` timestamp comparison at read time.
 - **Redirect URI allowlist at authorize-time.** The requested `redirect_uri` must be a literal match against `mcp_clients.redirect_uris`. `http://` only allowed for `localhost` / `127.0.0.1` at registration time (for Claude Desktop callbacks).
 
-## Status
+## MCP Endpoint
 
-The OAuth 2.1 authorization server is complete and ready to issue tokens. What is **not** yet wired up:
+`POST /api/mcp` is a minimal JSON-RPC 2.0 Streamable HTTP transport. It implements the 2025-06-18 MCP revision just enough for Claude Desktop / Claude.ai connectors:
 
-- `/api/mcp` — the actual MCP JSON-RPC endpoint that consumes the bearer via `resolveBearerToken()`. Not implemented this session.
-- Curation tools (create/update channels, add/remove videos, reorder playlists). These are blocked on the parallel **channel-hierarchy refactor** landing — the new schema will determine the tool surface.
+- `initialize` → returns `protocolVersion`, `capabilities.tools`, `serverInfo`
+- `notifications/initialized`, `notifications/cancelled` → 202, no body
+- `ping` → empty result
+- `tools/list` → tool schemas below
+- `tools/call` → dispatches by tool name, returns `{ content: [{ type: "text", text }] }`
 
-Until `/api/mcp` lands, the flow can be exercised end-to-end (register → authorize → consent → token) but the resulting bearer has no resource to call.
+On unauthenticated calls (or wrong scope) the endpoint returns `401` with:
+
+```
+WWW-Authenticate: Bearer resource_metadata="https://<host>/.well-known/oauth-protected-resource"
+```
+
+which is the MCP-spec-mandated discovery hint that triggers an OAuth flow in the client.
+
+### Tools (scope `frogo:curate`)
+
+All tools are scoped to the authenticated user via `owner_id` — users can only read/modify their own channels.
+
+| Tool | Parameters | Returns |
+|---|---|---|
+| `list_channels` | — | Array of channels the caller owns: `id`, `name`, `slug`, `path`, `description`, `icon`, `parent_id`, `position`, `video_count`. |
+| `get_channel` | `id` _or_ `path` (e.g. `"business/startups"`) | One channel + ordered playlist (videos with `id`, `youtube_id`, `title`, `thumbnail_url`, `duration_seconds`, `start_seconds`, `end_seconds`, `position`). |
+| `add_video` | `channel_id`, `url` (YouTube URL or bare video id) | Appends to the channel's playlist. Title + duration fetched via `fetchVideoMeta` from `youtube-meta.ts`. |
+| `delete_video` | `video_id` | Removes a video. Ownership checked via the video's channel. |
+| `reorder_videos` | `channel_id`, `ordered_video_ids[]` | Sets the playlist order. Unmentioned videos are appended at the end in their current order. |
+
+All mutations call `requireOwnership(service, userId, channelId)` which does a `channels.eq("id", …).eq("owner_id", …)` lookup — redundant with the RLS-protected admin paths but explicit here since MCP uses the service client for token lookup.
+
+## Connecting Claude to the server
+
+### Claude.ai (web) or Claude Desktop — Custom Connector
+
+1. Open **Settings → Connectors → Add custom connector**.
+2. Paste the MCP URL:
+   - Prod: `https://frogo.tv/api/mcp`
+   - Preview: `https://preview.frogo.tv/api/mcp`
+3. Claude hits the URL, gets the `401 + WWW-Authenticate` response, reads the protected-resource metadata at `/.well-known/oauth-protected-resource`, discovers the authorization server at `/.well-known/oauth-authorization-server`, and auto-runs Dynamic Client Registration against `/api/oauth/register`.
+4. A browser window opens to `/api/oauth/authorize`. Frogo bounces you to Supabase Google signin, then to `/api/oauth/consent`. Click **Authorize**.
+5. Browser redirects back into Claude with the auth code. Claude exchanges it for an access token at `/api/oauth/token` and stores it.
+6. Claude's tool list now shows `list_channels`, `get_channel`, `add_video`, `delete_video`, `reorder_videos`.
+
+Try: _"List my Frogo channels"_, _"Add https://youtube.com/watch?v=dQw4w9WgXcQ to the Jazz channel"_.
+
+### Claude Code (CLI)
+
+```bash
+claude mcp add --transport http frogo https://preview.frogo.tv/api/mcp
+```
+
+The first tool call triggers the OAuth flow in your browser. Tokens are stored per-project.
+
+### Token lifecycle
+
+- Access tokens last **30 days**, stored as SHA-256 hashes in `mcp_access_tokens`.
+- Manually revoke a user's tokens with SQL: `UPDATE mcp_access_tokens SET revoked_at = now() WHERE user_id = '<uuid>'`.
+- After revocation Claude's next call gets `401 + WWW-Authenticate` and the client re-runs the flow automatically.
