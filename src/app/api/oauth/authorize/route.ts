@@ -22,7 +22,7 @@
  */
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
-import { generateToken } from "@/lib/mcp-auth";
+import { generateToken, getIssuer } from "@/lib/mcp-auth";
 
 const AUTH_SESSION_COOKIE = "frogo_mcp_auth_session";
 const SESSION_TTL_SECONDS = 600; // 10 minutes
@@ -35,7 +35,10 @@ function errorRedirect(origin: string, error: string, description: string) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  // Honor x-forwarded-host (ngrok / proxies), otherwise on dev we'd
+  // redirect to https://localhost:5555/... which the browser can't reach.
+  const origin = getIssuer(request);
 
   const clientId = searchParams.get("client_id");
   const redirectUri = searchParams.get("redirect_uri");

@@ -21,6 +21,9 @@ interface RegisterBody {
 }
 
 export async function POST(request: Request) {
+  console.log("[oauth/register] POST", {
+    ua: request.headers.get("user-agent"),
+  });
   let body: RegisterBody;
   try {
     body = await request.json();

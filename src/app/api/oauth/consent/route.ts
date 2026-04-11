@@ -12,7 +12,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import { createClient as createServerSupabase } from "@/lib/supabase-server";
-import { generateToken } from "@/lib/mcp-auth";
+import { generateToken, getIssuer } from "@/lib/mcp-auth";
 
 const AUTH_SESSION_COOKIE = "frogo_mcp_auth_session";
 // OAuth 2.1 recommends "short-lived" codes — 10 minutes is the practical
@@ -135,7 +135,9 @@ function escapeHtml(s: string): string {
 }
 
 export async function GET(request: Request) {
-  const { origin } = new URL(request.url);
+  // Use getIssuer — on ngrok dev, new URL(request.url).origin leaks
+  // localhost:5555 into redirect URLs and breaks the flow.
+  const origin = getIssuer(request);
   const sessionId = getSessionCookie(request);
   if (!sessionId) {
     return NextResponse.redirect(`${origin}/auth/error?error=missing_session`);
@@ -168,7 +170,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const { origin } = new URL(request.url);
+  const origin = getIssuer(request);
   const sessionId = getSessionCookie(request);
   if (!sessionId) {
     return NextResponse.redirect(`${origin}/auth/error?error=missing_session`);
@@ -199,7 +201,10 @@ export async function POST(request: Request) {
     const redirect = new URL(session.redirect_uri);
     redirect.searchParams.set("error", "access_denied");
     if (session.state) redirect.searchParams.set("state", session.state);
-    const response = NextResponse.redirect(redirect);
+    // 303 See Other: POST-redirect-GET. NextResponse.redirect defaults to
+    // 307, which preserves the POST method — the browser then POSTs to
+    // the MCP client's callback and the client 405s. 303 forces GET.
+    const response = NextResponse.redirect(redirect, 303);
     response.cookies.delete(AUTH_SESSION_COOKIE);
     return response;
   }
@@ -227,7 +232,8 @@ export async function POST(request: Request) {
   const redirect = new URL(session.redirect_uri);
   redirect.searchParams.set("code", code);
   if (session.state) redirect.searchParams.set("state", session.state);
-  const response = NextResponse.redirect(redirect);
+  // 303 See Other — see the deny branch above for why.
+  const response = NextResponse.redirect(redirect, 303);
   response.cookies.delete(AUTH_SESSION_COOKIE);
   return response;
 }

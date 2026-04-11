@@ -22,7 +22,7 @@
  */
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
-import { resolveBearerToken, type ResolvedToken } from "@/lib/mcp-auth";
+import { resolveBearerToken, getIssuer, type ResolvedToken } from "@/lib/mcp-auth";
 import { fetchVideoMeta } from "@/lib/youtube-meta";
 import { buildChannelPath, type ChannelLike } from "@/lib/channel-paths";
 
@@ -58,17 +58,16 @@ function rpcError(
 // ─── Auth ──────────────────────────────────────────────────────────────────
 
 function unauthorized(request: Request) {
-  const resourceMetadata = new URL(
-    "/.well-known/oauth-protected-resource",
-    new URL(request.url).origin
-  ).toString();
+  // Use getIssuer so the resource_metadata URL honors x-forwarded-host
+  // — critical on ngrok-fronted dev and any proxied prod setup.
+  const resourceMetadata = `${getIssuer(request)}/.well-known/oauth-protected-resource`;
   return new NextResponse(
     JSON.stringify({ error: "invalid_token" }),
     {
       status: 401,
       headers: {
         "content-type": "application/json",
-        "www-authenticate": `Bearer resource_metadata="${resourceMetadata}"`,
+        "www-authenticate": `Bearer realm="mcp", resource_metadata="${resourceMetadata}"`,
       },
     }
   );
@@ -404,13 +403,24 @@ async function callTool(
 // ─── Request handler ───────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
+  console.log("[mcp] POST", {
+    ua: request.headers.get("user-agent"),
+    hasAuth: !!request.headers.get("authorization"),
+    session: request.headers.get("mcp-session-id"),
+  });
   const service = createServiceClient();
   const auth = await resolveBearerToken(
     service,
     request.headers.get("authorization")
   );
-  if (!auth) return unauthorized(request);
-  if (auth.scope !== "frogo:curate") return unauthorized(request);
+  if (!auth) {
+    console.log("[mcp] POST 401 — no/invalid bearer");
+    return unauthorized(request);
+  }
+  if (auth.scope !== "frogo:curate") {
+    console.log("[mcp] POST 401 — wrong scope:", auth.scope);
+    return unauthorized(request);
+  }
 
   let body: JsonRpcRequest;
   try {

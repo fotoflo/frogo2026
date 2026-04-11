@@ -105,6 +105,16 @@ export function getIssuer(request: Request): string {
   // Explicit env var wins (useful for preview.frogo.tv vs frogo.tv).
   const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
   if (envUrl) return envUrl.replace(/\/$/, "");
-  // Fall back to the request's own origin.
+
+  // Honor reverse proxy headers — ngrok, Vercel, and most production
+  // proxies set x-forwarded-host/proto. Without this, `request.url` on a
+  // ngrok-forwarded dev server returns `https://localhost:5555`, which
+  // leaks into OAuth discovery metadata and breaks the whole handshake.
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+
   return new URL(request.url).origin;
 }

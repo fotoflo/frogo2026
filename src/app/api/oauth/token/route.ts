@@ -27,6 +27,10 @@ function error(code: string, description: string, status = 400) {
 }
 
 export async function POST(request: Request) {
+  console.log("[oauth/token] POST", {
+    ua: request.headers.get("user-agent"),
+    ct: request.headers.get("content-type"),
+  });
   // Accept either form-encoded or JSON for robustness.
   let params: URLSearchParams;
   const contentType = request.headers.get("content-type") ?? "";

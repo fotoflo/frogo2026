@@ -7,9 +7,14 @@
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { getIssuer } from "@/lib/mcp-auth";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  // getIssuer honors x-forwarded-host, critical when the dev server is
+  // fronted by ngrok (or any proxy). Without it the Supabase redirect
+  // targets localhost:5555 and the browser chokes with ERR_SSL_PROTOCOL_ERROR.
+  const origin = getIssuer(request);
   const next = searchParams.get("next") ?? "/admin";
 
   const supabase = await createClient();
