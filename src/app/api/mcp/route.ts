@@ -487,6 +487,16 @@ export async function POST(request: Request) {
   }
 }
 
+// MCP Streamable HTTP lets the client DELETE the endpoint with an
+// Mcp-Session-Id to explicitly terminate a session. The spec says the
+// server MAY respond 405, but Claude.ai's connector client chokes on
+// 405 (same failure mode as GET — wraps it in an Anthropic error
+// envelope). We're stateless (no Mcp-Session-Id tracking), so DELETE
+// is always a no-op — return 204 to keep the client happy.
+export async function DELETE() {
+  return new NextResponse(null, { status: 204 });
+}
+
 export async function GET(request: Request) {
   // MCP Streamable HTTP allows an optional server-push SSE stream. The spec
   // says a server MAY return 405, but the Claude.ai connector client chokes
