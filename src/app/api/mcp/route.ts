@@ -487,9 +487,54 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
-  // MCP Streamable HTTP allows an optional server-push SSE stream. We don't
-  // need server-initiated messages (no long-running tools, no notifications
-  // to push), so return 405 — clients fall back to POST-only just fine.
-  return new NextResponse("Method Not Allowed", { status: 405 });
+export async function GET(request: Request) {
+  // MCP Streamable HTTP allows an optional server-push SSE stream. The spec
+  // says a server MAY return 405, but the Claude.ai connector client chokes
+  // on it (surfaces as an "invalid_request_error: Method Not Allowed"
+  // wrapped in Anthropic's error envelope). So we open an empty event
+  // stream: auth-gated like POST, sends a single SSE comment to establish
+  // the connection, then stays silent — we have no notifications to push.
+  const service = createServiceClient();
+  const auth = await resolveBearerToken(
+    service,
+    request.headers.get("authorization")
+  );
+  if (!auth) return unauthorized(request);
+  if (auth.scope !== "frogo:curate") return unauthorized(request);
+
+  const stream = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      // SSE comment line — a valid "hello" that doesn't trigger any event
+      // handler on the client but does flush headers and open the stream.
+      controller.enqueue(encoder.encode(": connected\n\n"));
+      // Heartbeat every 15s so intermediaries (Vercel's edge, load balancers)
+      // don't idle-close the connection. Cleanup when client disconnects.
+      const interval = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(": ping\n\n"));
+        } catch {
+          clearInterval(interval);
+        }
+      }, 15_000);
+      request.signal.addEventListener("abort", () => {
+        clearInterval(interval);
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
+      });
+    },
+  });
+
+  return new NextResponse(stream, {
+    status: 200,
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      connection: "keep-alive",
+      "x-accel-buffering": "no",
+    },
+  });
 }
