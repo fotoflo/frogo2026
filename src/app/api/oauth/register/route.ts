@@ -69,9 +69,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 
+  // RFC 7591 §3.2.1 — the response includes the client's metadata plus
+  // `client_id_issued_at` (unix seconds). For public clients with no
+  // client_secret, `client_secret_expires_at: 0` is the conventional way
+  // to say "no secret, nothing to expire" — some OAuth libraries reject
+  // the response if it's missing.
+  const nowSec = Math.floor(Date.now() / 1000);
   return NextResponse.json(
     {
       client_id: clientId,
+      client_id_issued_at: nowSec,
+      client_secret_expires_at: 0,
       client_name: clientName,
       redirect_uris: redirectUris,
       token_endpoint_auth_method: "none",

@@ -15,7 +15,11 @@ import { createClient as createServerSupabase } from "@/lib/supabase-server";
 import { generateToken } from "@/lib/mcp-auth";
 
 const AUTH_SESSION_COOKIE = "frogo_mcp_auth_session";
-const CODE_TTL_SECONDS = 60;
+// OAuth 2.1 recommends "short-lived" codes — 10 minutes is the practical
+// upper bound. We used 60s originally but that's too tight: any hiccup
+// between the redirect back to the client and their token exchange burns
+// the window and the user has to restart the flow.
+const CODE_TTL_SECONDS = 600;
 
 async function loadSession(sessionId: string) {
   const supabase = createServiceClient();
