@@ -1,211 +1,333 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Become a Curator — Frogo.tv",
+  title: "Program a Channel — Frogo.tv",
   description:
-    "Curate a Frogo.tv channel from Claude. Connect the frogotv MCP tool and build your own broadcast playlist in natural language.",
+    "Program your own Frogo.tv channel just by chatting with Claude. No admin panels, no spreadsheets — just tell Claude what you want on air.",
 };
 
 const MCP_URL = "https://frogo.tv/api/mcp";
 
-const tools = [
-  {
-    name: "list_channels",
-    blurb: "See every channel you own, with video counts.",
-  },
-  {
-    name: "get_channel",
-    blurb: "Inspect one channel's full playlist.",
-  },
-  {
-    name: "create_channel",
-    blurb: "Spin up a new channel, optionally nested under a parent.",
-  },
-  {
-    name: "add_video",
-    blurb: "Append a YouTube video to a channel's playlist.",
-  },
-  {
-    name: "delete_video",
-    blurb: "Remove a video from a playlist.",
-  },
-  {
-    name: "reorder_videos",
-    blurb: "Set the playlist order.",
-  },
-];
-
-const examplePrompts = [
-  "Create a channel called 'Lo-fi Jazz' with description 'Late-night study beats' and add the top 10 lofi jazz videos on YouTube.",
-  "Under my /kids channel, make a sub-channel called 'Maruko' and fill it with the first season of Chibi Maruko-chan.",
-  "Reorder the videos in my /business/startups channel so the YC interviews come first, then the a16z talks.",
-];
-
 export default function CuratePage() {
   return (
-    <div className="mx-auto max-w-2xl px-6 py-12">
-      <Link
-        href="/"
-        className="text-sm text-muted hover:text-foreground transition-colors mb-8 inline-block"
-      >
-        &larr; Back
-      </Link>
+    <div className="min-h-screen">
+      {/* ─── Nav ──────────────────────────────────────────────── */}
+      <div className="mx-auto max-w-5xl px-6 pt-8">
+        <Link
+          href="/"
+          className="text-sm text-muted hover:text-foreground transition-colors inline-block"
+        >
+          &larr; Back to Frogo.tv
+        </Link>
+      </div>
 
-      <h1 className="text-3xl font-bold tracking-tight mb-2">
-        Become a Frogo.tv Curator
-      </h1>
-      <p className="text-muted mb-8 max-w-lg">
-        Frogo.tv channels are curated YouTube playlists that loop on a
-        half-hour broadcast schedule. You can build and tune your own channels
-        from inside Claude — no admin panel required. We expose a small set of
-        tools over the Model Context Protocol so Claude can list, create, fill,
-        and reorder your channels on your behalf.
-      </p>
+      {/* ─── Hero ─────────────────────────────────────────────── */}
+      <section className="mx-auto max-w-5xl px-6 pt-16 pb-20 text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-card-border bg-card-bg px-4 py-1.5 text-xs text-muted mb-8">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+          </span>
+          Now open to new curators
+        </div>
 
-      <section className="mt-10">
-        <h2 className="text-xl font-semibold mb-4">
-          1. Connect frogotv to Claude
-        </h2>
-        <p className="text-sm text-muted mb-4">
-          Add Frogo.tv as a remote MCP connector in Claude. This is a
-          one-time setup — Claude will sign you in with Google and remember
-          the connection.
+        <h1 className="text-5xl sm:text-6xl font-bold tracking-tight mb-6">
+          Program your own
+          <br />
+          <span className="bg-gradient-to-r from-accent to-pink-400 bg-clip-text text-transparent">
+            TV channel
+          </span>{" "}
+          by chatting
+          <br />
+          with Claude.
+        </h1>
+        <p className="text-lg text-muted max-w-xl mx-auto mb-10">
+          Tell Claude what you want to broadcast. It builds the playlist,
+          picks the order, and puts it on air — live on Frogo.tv for
+          everyone to tune into.
         </p>
-        <ol className="space-y-3 text-sm list-decimal pl-5 marker:text-muted">
-          <li>
-            Open Claude at{" "}
+        <div className="flex gap-3 justify-center flex-wrap">
+          <a
+            href="https://claude.ai/settings/connectors"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-base font-medium text-white hover:bg-accent-hover transition-colors"
+          >
+            Connect Claude
+            <span aria-hidden>&rarr;</span>
+          </a>
+          <Link
+            href="/"
+            className="inline-flex items-center rounded-full border border-card-border bg-card-bg px-6 py-3 text-base font-medium hover:bg-card-border transition-colors"
+          >
+            Watch live
+          </Link>
+        </div>
+      </section>
+
+      {/* ─── What you get ─────────────────────────────────────── */}
+      <section className="mx-auto max-w-5xl px-6 pb-20">
+        <div className="rounded-3xl border border-card-border bg-gradient-to-br from-card-bg to-[#0f0a1f] p-8 sm:p-12">
+          <div className="grid sm:grid-cols-3 gap-8 text-center">
+            <div>
+              <div className="text-5xl mb-3">📺</div>
+              <div className="font-semibold mb-1">Your own channel</div>
+              <div className="text-sm text-muted">
+                A named spot on Frogo.tv that anyone can tune into.
+              </div>
+            </div>
+            <div>
+              <div className="text-5xl mb-3">🎬</div>
+              <div className="font-semibold mb-1">Curated playlists</div>
+              <div className="text-sm text-muted">
+                Pick the videos. Set the order. Claude does the typing.
+              </div>
+            </div>
+            <div>
+              <div className="text-5xl mb-3">🌐</div>
+              <div className="font-semibold mb-1">Always broadcasting</div>
+              <div className="text-sm text-muted">
+                Loops every half hour. Viewers join mid-show, like real TV.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── How to connect ──────────────────────────────────── */}
+      <section className="mx-auto max-w-5xl px-6 pb-20">
+        <div className="text-center mb-12">
+          <div className="text-xs uppercase tracking-widest text-accent font-semibold mb-2">
+            Setup
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+            Three clicks. One sign-in.
+          </h2>
+        </div>
+
+        <div className="grid sm:grid-cols-3 gap-6">
+          <div className="rounded-2xl border border-card-border bg-card-bg p-6">
+            <div className="text-4xl mb-4">1️⃣</div>
+            <div className="font-semibold mb-2">Open Claude settings</div>
+            <div className="text-sm text-muted mb-4">
+              Go to Connectors in your Claude.ai settings.
+            </div>
             <a
               href="https://claude.ai/settings/connectors"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-accent hover:underline"
+              className="text-xs text-accent hover:underline"
             >
-              claude.ai/settings/connectors
+              claude.ai/settings/connectors &rarr;
             </a>
-            .
-          </li>
-          <li>
-            Click <strong>Add custom connector</strong>.
-          </li>
-          <li>
-            Name it <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-card-bg border border-card-border">frogotv</code> and paste this
-            URL:
-            <div className="mt-2 rounded-lg border border-card-border bg-card-bg px-3 py-2 font-mono text-xs break-all select-all">
+          </div>
+
+          <div className="rounded-2xl border border-card-border bg-card-bg p-6">
+            <div className="text-4xl mb-4">2️⃣</div>
+            <div className="font-semibold mb-2">Add a custom connector</div>
+            <div className="text-sm text-muted mb-4">
+              Name it <span className="font-mono">frogotv</span> and paste
+              this URL:
+            </div>
+            <div className="rounded-lg bg-[#0a0a0a] border border-card-border px-3 py-2 font-mono text-xs break-all select-all">
               {MCP_URL}
             </div>
-          </li>
-          <li>
-            Click <strong>Connect</strong>. You&apos;ll be redirected to
-            Google sign-in, then an authorization screen. Approve it.
-          </li>
-          <li>
-            That&apos;s it — Claude can now manage your Frogo.tv channels.
-          </li>
-        </ol>
-      </section>
+          </div>
 
-      <section className="mt-12">
-        <h2 className="text-xl font-semibold mb-4">2. Try it out</h2>
-        <p className="text-sm text-muted mb-4">
-          Start a new chat in Claude and ask it to do something with your
-          channels. A few prompts to try:
-        </p>
-        <div className="space-y-3">
-          {examplePrompts.map((p) => (
-            <div
-              key={p}
-              className="rounded-xl border border-card-border bg-card-bg px-4 py-3 text-sm"
-            >
-              &ldquo;{p}&rdquo;
+          <div className="rounded-2xl border border-card-border bg-card-bg p-6">
+            <div className="text-4xl mb-4">3️⃣</div>
+            <div className="font-semibold mb-2">Sign in with Google</div>
+            <div className="text-sm text-muted">
+              Approve the authorization screen. Done — Claude can now
+              program your channel.
             </div>
-          ))}
+          </div>
         </div>
       </section>
 
-      <section className="mt-12">
-        <h2 className="text-xl font-semibold mb-4">What Claude can do</h2>
-        <p className="text-sm text-muted mb-4">
-          The frogotv connector exposes six tools, all scoped to channels you
-          own. Nothing else is touched — Claude can&apos;t see anyone
-          else&apos;s channels, their OAuth tokens, or the rest of the
-          database.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {tools.map((t) => (
-            <div
-              key={t.name}
-              className="rounded-xl border border-card-border bg-card-bg p-4"
-            >
-              <div className="font-mono text-sm font-medium">{t.name}</div>
-              <div className="text-xs text-muted mt-1">{t.blurb}</div>
+      {/* ─── Example chat ────────────────────────────────────── */}
+      <section className="mx-auto max-w-3xl px-6 pb-20">
+        <div className="text-center mb-10">
+          <div className="text-xs uppercase tracking-widest text-accent font-semibold mb-2">
+            What it feels like
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+            Just tell Claude what you want on air.
+          </h2>
+        </div>
+
+        <div className="rounded-2xl border border-card-border bg-card-bg p-6 sm:p-8 space-y-5">
+          {/* User bubble */}
+          <div className="flex justify-end">
+            <div className="max-w-sm rounded-2xl rounded-tr-sm bg-accent px-5 py-3 text-sm">
+              Hey Claude, make me a chill lo-fi jazz channel and put 10 good
+              late-night study tracks on it.
             </div>
-          ))}
+          </div>
+          {/* Claude bubble */}
+          <div className="flex justify-start gap-3">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-accent to-pink-400 flex items-center justify-center text-xs">
+              ✦
+            </div>
+            <div className="max-w-md rounded-2xl rounded-tl-sm border border-card-border bg-[#0a0a0a] px-5 py-3 text-sm text-foreground/90">
+              Created <strong>Lo-fi Jazz</strong> at{" "}
+              <span className="font-mono text-xs">frogo.tv/watch/lo-fi-jazz</span>{" "}
+              and added 10 tracks. It&apos;s on air now — the loop resets
+              at the next half-hour mark.
+            </div>
+          </div>
+          {/* User bubble */}
+          <div className="flex justify-end">
+            <div className="max-w-sm rounded-2xl rounded-tr-sm bg-accent px-5 py-3 text-sm">
+              Move the Nujabes track to the top.
+            </div>
+          </div>
+          {/* Claude bubble */}
+          <div className="flex justify-start gap-3">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-accent to-pink-400 flex items-center justify-center text-xs">
+              ✦
+            </div>
+            <div className="max-w-md rounded-2xl rounded-tl-sm border border-card-border bg-[#0a0a0a] px-5 py-3 text-sm text-foreground/90">
+              Done. Reordered 10 videos — Nujabes is now first.
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="mt-12">
-        <h2 className="text-xl font-semibold mb-4">How broadcasting works</h2>
-        <p className="text-sm text-muted">
-          Frogo.tv is a broadcast, not an on-demand player. Every channel
-          loops its playlist on half-hour boundaries (:00 and :30), so
-          whoever tunes in joins mid-show at exactly the same spot as
-          everyone else watching. A good channel is <strong>15-30 minutes
-          of curated content</strong> per loop — think of it like
-          programming an MTV block, not uploading to a library.
-        </p>
+      {/* ─── What Claude can do ──────────────────────────────── */}
+      <section className="mx-auto max-w-5xl px-6 pb-20">
+        <div className="text-center mb-10">
+          <div className="text-xs uppercase tracking-widest text-accent font-semibold mb-2">
+            Powers
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+            What Claude can do for you.
+          </h2>
+        </div>
+
+        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <Power
+            emoji="✨"
+            title="Create channels"
+            blurb="Spin up a new channel with a name, description, and icon."
+          />
+          <Power
+            emoji="➕"
+            title="Add videos"
+            blurb="Drop any YouTube URL into a channel and it's on air."
+          />
+          <Power
+            emoji="🔀"
+            title="Reorder the loop"
+            blurb="Ask Claude to shuffle, sort, or put a specific video first."
+          />
+          <Power
+            emoji="🗑️"
+            title="Remove videos"
+            blurb="Prune anything that's not working. No undo needed — just ask again."
+          />
+          <Power
+            emoji="📂"
+            title="Nest into categories"
+            blurb="Organize channels under parents like /kids or /music."
+          />
+          <Power
+            emoji="📋"
+            title="Review what's on air"
+            blurb="Ask Claude to list your channels and their current playlists."
+          />
+        </div>
       </section>
 
-      <section className="mt-12">
-        <h2 className="text-xl font-semibold mb-4">Requirements</h2>
-        <ul className="text-sm text-muted space-y-2 list-disc pl-5 marker:text-muted">
-          <li>A Google account to sign in with.</li>
-          <li>A Claude.ai account with access to custom connectors.</li>
-          <li>Videos must be public YouTube videos (no age-gated or
-            region-blocked content — the broadcast loop skips unavailable
-            videos).</li>
-        </ul>
+      {/* ─── Broadcasting explainer ──────────────────────────── */}
+      <section className="mx-auto max-w-5xl px-6 pb-20">
+        <div className="rounded-3xl border border-card-border bg-gradient-to-br from-[#1a0f2e] to-card-bg p-8 sm:p-12 text-center">
+          <div className="text-5xl mb-4">📡</div>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4">
+            It&apos;s a broadcast, not a library.
+          </h2>
+          <p className="text-muted max-w-xl mx-auto">
+            Every channel loops its playlist on the half hour. Whoever
+            tunes in lands at exactly the same spot as everyone else
+            watching. Aim for <strong className="text-foreground">15–30
+            minutes</strong> of tight, curated programming — think MTV
+            block, not Netflix queue.
+          </p>
+        </div>
       </section>
 
-      <section className="mt-12 pt-8 border-t border-card-border">
-        <h2 className="text-xl font-semibold mb-3">Something not working?</h2>
-        <p className="text-sm text-muted">
-          If Claude says it can&apos;t fetch YouTube metadata for a video,
-          that&apos;s a known issue — YouTube occasionally blocks our
-          server-side fetch from datacenter IPs. Ask Claude to retry with
-          the title and duration passed in explicitly; the{" "}
-          <code className="font-mono text-xs px-1.5 py-0.5 rounded bg-card-bg border border-card-border">add_video</code> tool accepts
-          both as optional arguments so Claude can supply them from its own
-          YouTube lookup.
+      {/* ─── Final CTA ───────────────────────────────────────── */}
+      <section className="mx-auto max-w-5xl px-6 pb-24 text-center">
+        <div className="inline-block mb-8">
+          <Image
+            src="/images/frogo/frogo-icon.png"
+            alt="Frogo"
+            width={64}
+            height={64}
+            className="rounded-2xl"
+          />
+        </div>
+        <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+          Ready to go on air?
+        </h2>
+        <p className="text-muted mb-8 max-w-md mx-auto">
+          Connect Claude in three clicks. Start programming your channel
+          in the next five minutes.
         </p>
-        <p className="text-sm text-muted mt-4">
-          Questions or ideas? Find us on{" "}
+        <a
+          href="https://claude.ai/settings/connectors"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-full bg-accent px-8 py-4 text-base font-medium text-white hover:bg-accent-hover transition-colors"
+        >
+          Connect Claude to Frogo.tv
+          <span aria-hidden>&rarr;</span>
+        </a>
+        <div className="mt-6 text-xs text-muted">
+          Free. Owned channels only. Sign in with Google.
+        </div>
+      </section>
+
+      {/* ─── Footer ──────────────────────────────────────────── */}
+      <footer className="mx-auto max-w-5xl px-6 py-10 border-t border-card-border text-center text-xs text-muted">
+        <div className="flex gap-6 justify-center mb-3">
+          <Link href="/" className="hover:text-foreground transition-colors">
+            Watch
+          </Link>
+          <Link href="/about" className="hover:text-foreground transition-colors">
+            About
+          </Link>
           <a
             href="https://github.com/fotoflo/frogo2026"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-accent hover:underline"
+            className="hover:text-foreground transition-colors"
           >
             GitHub
           </a>
-          .
-        </p>
-      </section>
+        </div>
+        <div>Frogo.tv · 2026</div>
+      </footer>
+    </div>
+  );
+}
 
-      <div className="mt-12 pt-8 border-t border-card-border flex gap-4 flex-wrap">
-        <Link
-          href="/"
-          className="inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover transition-colors"
-        >
-          Watch Frogo.tv
-        </Link>
-        <Link
-          href="/about"
-          className="inline-block rounded-lg border border-card-border px-4 py-2 text-sm font-medium text-foreground hover:bg-card-bg transition-colors"
-        >
-          About the project
-        </Link>
-      </div>
+function Power({
+  emoji,
+  title,
+  blurb,
+}: {
+  emoji: string;
+  title: string;
+  blurb: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-card-border bg-card-bg p-5 hover:border-accent/50 transition-colors">
+      <div className="text-3xl mb-3">{emoji}</div>
+      <div className="font-semibold mb-1">{title}</div>
+      <div className="text-sm text-muted">{blurb}</div>
     </div>
   );
 }
