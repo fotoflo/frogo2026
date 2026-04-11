@@ -43,21 +43,61 @@ export function extractYouTubeId(input: string): string | null {
   return null;
 }
 
+export interface FetchVideoMetaOptions {
+  /** Override: caller-provided title, skips title lookup entirely */
+  title?: string;
+  /** Override: caller-provided duration in seconds, skips duration lookup */
+  durationSeconds?: number;
+}
+
+/**
+ * Fetches video metadata. `urlOrId` is always required (we need the canonical
+ * 11-char id). `options.title` / `options.durationSeconds` can be passed in
+ * if the caller already knows them (e.g. the MCP client already has the data
+ * from its own YouTube lookup) — this bypasses the server-side fetch, which
+ * is unreliable from Vercel's datacenter IPs (YouTube serves consent walls).
+ */
 export async function fetchVideoMeta(
-  urlOrId: string
+  urlOrId: string,
+  options: FetchVideoMetaOptions = {}
 ): Promise<VideoMeta | null> {
   const youtubeId = extractYouTubeId(urlOrId);
-  if (!youtubeId) return null;
+  if (!youtubeId) {
+    console.log("[youtube-meta] no id from input:", urlOrId);
+    return null;
+  }
 
-  const [title, durationSeconds, author] = await Promise.all([
-    fetchTitle(youtubeId),
-    fetchDuration(youtubeId),
-    fetchAuthor(youtubeId),
+  // If the caller supplied both overrides, we're done — no network calls.
+  if (options.title && typeof options.durationSeconds === "number") {
+    return {
+      youtubeId,
+      title: options.title,
+      author: "",
+      durationSeconds: options.durationSeconds,
+    };
+  }
+
+  const [oembed, scrapedDuration] = await Promise.all([
+    options.title ? Promise.resolve(null) : fetchOembed(youtubeId),
+    typeof options.durationSeconds === "number"
+      ? Promise.resolve(options.durationSeconds)
+      : fetchDuration(youtubeId),
   ]);
 
-  if (!title || durationSeconds === null) return null;
+  const title = options.title ?? oembed?.title ?? null;
+  const author = oembed?.author_name ?? "";
+  const durationSeconds = scrapedDuration;
 
-  return { youtubeId, title, author: author ?? "", durationSeconds };
+  if (!title) {
+    console.log("[youtube-meta] title lookup failed:", youtubeId);
+    return null;
+  }
+  if (durationSeconds === null) {
+    console.log("[youtube-meta] duration lookup failed:", youtubeId);
+    return null;
+  }
+
+  return { youtubeId, title, author, durationSeconds };
 }
 
 async function fetchOembed(
@@ -68,35 +108,49 @@ async function fetchOembed(
       `https://noembed.com/embed?url=https://www.youtube.com/watch?v=${youtubeId}`,
       { cache: "no-store" }
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log("[youtube-meta] noembed status:", res.status, youtubeId);
+      return null;
+    }
     return (await res.json()) as { title?: string; author_name?: string };
-  } catch {
+  } catch (err) {
+    console.log("[youtube-meta] noembed threw:", youtubeId, err);
     return null;
   }
 }
 
-async function fetchTitle(youtubeId: string): Promise<string | null> {
-  const data = await fetchOembed(youtubeId);
-  return data?.title ?? null;
-}
-
-async function fetchAuthor(youtubeId: string): Promise<string | null> {
-  const data = await fetchOembed(youtubeId);
-  return data?.author_name ?? null;
-}
-
 async function fetchDuration(youtubeId: string): Promise<number | null> {
+  // hl=en&gl=US bypasses YouTube's EU consent wall, which fires when the
+  // request comes from a datacenter IP like Vercel's. Without it, the
+  // response is an interstitial page that has no "lengthSeconds".
+  const url = `https://www.youtube.com/watch?v=${youtubeId}&hl=en&gl=US`;
   try {
-    const res = await fetch(`https://www.youtube.com/watch?v=${youtubeId}`, {
-      headers: { "User-Agent": "Mozilla/5.0" },
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
       cache: "no-store",
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log("[youtube-meta] watch status:", res.status, youtubeId);
+      return null;
+    }
     const html = await res.text();
     const m = html.match(/"lengthSeconds":"(\d+)"/);
-    if (!m) return null;
+    if (!m) {
+      // Probably a consent wall or bot-check page.
+      console.log(
+        "[youtube-meta] lengthSeconds not found, html len:",
+        html.length,
+        youtubeId
+      );
+      return null;
+    }
     return parseInt(m[1], 10);
-  } catch {
+  } catch (err) {
+    console.log("[youtube-meta] watch threw:", youtubeId, err);
     return null;
   }
 }
