@@ -1,10 +1,14 @@
 /**
  * OAuth callback — Google redirects here with `?code=...` after sign-in.
  *
- * Exchanges the code for a session cookie, then runs the one-shot ownership
- * claim: if the user's email matches ADMIN_EMAIL, any channels with
- * owner_id IS NULL get assigned to them. This only fires on successful
- * exchange; idempotent so re-signing in is a no-op.
+ * Exchanges the code for a session cookie, then:
+ *   1. Bumps the profile's login counter and last_login timestamp.
+ *   2. If the profile has god_mode, runs a one-shot ownership claim on any
+ *      channels with owner_id IS NULL — idempotent, no-op after first win.
+ *
+ * Profile rows are auto-created by the on_auth_user_created trigger
+ * (supabase/migrations/20260411000000_profiles.sql), which also auto-promotes
+ * fotoflo@gmail.com to god_mode.
  */
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
@@ -26,10 +30,20 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/auth/error`);
   }
 
-  // Ownership claim — runs on every sign-in but is a no-op after first success.
-  const adminEmail = process.env.ADMIN_EMAIL;
-  if (adminEmail && data.user.email === adminEmail) {
-    const service = createServiceClient();
+  const service = createServiceClient();
+
+  // Bump login stats. Uses a raw increment so concurrent sign-ins don't
+  // lose counts.
+  await service.rpc("increment_profile_login", { profile_id: data.user.id });
+
+  // Fetch god_mode to decide on the ownership claim.
+  const { data: profile } = await service
+    .from("profiles")
+    .select("god_mode")
+    .eq("id", data.user.id)
+    .maybeSingle();
+
+  if (profile?.god_mode) {
     await service
       .from("channels")
       .update({ owner_id: data.user.id })

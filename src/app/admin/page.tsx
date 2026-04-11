@@ -1,25 +1,23 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase-server";
 import { buildChannelPath, type ChannelLike } from "@/lib/channel-paths";
+import { requireAdmin } from "@/lib/admin-auth";
 import ChannelList, { type ChannelListItem } from "./ChannelList";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminHome() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user, profile } = await requireAdmin();
 
-  // Layout guarantees user, but TS doesn't know that.
-  if (!user) return null;
-
-  const { data: channels } = await supabase
+  // God-mode users see everything; regular users only see their own channels.
+  let query = supabase
     .from("channels")
     .select(
       "id, name, slug, parent_id, description, icon, position, videos(count)"
-    )
-    .eq("owner_id", user.id)
+    );
+  if (!profile.god_mode) {
+    query = query.eq("owner_id", user.id);
+  }
+  const { data: channels } = await query
     .order("position", { ascending: true, nullsFirst: false })
     .order("name");
 

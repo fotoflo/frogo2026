@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase-server";
 import {
   buildChannelPath,
   descendantIds,
   findChannelByPath,
   type ChannelLike,
 } from "@/lib/channel-paths";
+import { requireAdmin } from "@/lib/admin-auth";
 import ChannelEditor, { type ParentOption } from "./ChannelEditor";
 
 export const dynamic = "force-dynamic";
@@ -17,27 +17,25 @@ export default async function EditChannelPage({
   params: Promise<{ slug: string[] }>;
 }) {
   const { slug: segments } = await params;
-  const supabase = await createClient();
+  const { supabase, user, profile } = await requireAdmin();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/api/auth/signin?next=/admin");
-
-  // Pull every channel the user owns so we can resolve the path AND build the
-  // parent picker options in one round-trip.
-  const { data: ownedChannels } = await supabase
+  // Pull every visible channel (all for god_mode, owned otherwise) so we can
+  // resolve the path AND build the parent picker options in one round-trip.
+  let visibleQuery = supabase
     .from("channels")
-    .select("id, name, slug, description, icon, parent_id, owner_id")
-    .eq("owner_id", user.id);
+    .select("id, name, slug, description, icon, parent_id, owner_id");
+  if (!profile.god_mode) {
+    visibleQuery = visibleQuery.eq("owner_id", user.id);
+  }
+  const { data: visibleChannels } = await visibleQuery;
 
-  const all = (ownedChannels ?? []) as ChannelLike[];
+  const all = (visibleChannels ?? []) as ChannelLike[];
   const resolved = findChannelByPath(segments, all);
   if (!resolved) notFound();
 
-  const channel = (ownedChannels ?? []).find((c) => c.id === resolved.id);
+  const channel = (visibleChannels ?? []).find((c) => c.id === resolved.id);
   if (!channel) notFound();
-  if (channel.owner_id !== user.id) redirect("/admin");
+  if (!profile.god_mode && channel.owner_id !== user.id) redirect("/admin");
 
   const { data: videos } = await supabase
     .from("videos")
@@ -47,10 +45,10 @@ export default async function EditChannelPage({
     .eq("channel_id", channel.id)
     .order("position");
 
-  // Parent candidates = all owned channels except the channel itself and its
-  // descendants (those would create a cycle).
+  // Parent candidates = all visible channels except the channel itself and
+  // its descendants (those would create a cycle).
   const forbidden = descendantIds(channel.id, all);
-  const parentOptions: ParentOption[] = (ownedChannels ?? [])
+  const parentOptions: ParentOption[] = (visibleChannels ?? [])
     .filter((c) => !forbidden.has(c.id))
     .map((c) => ({
       id: c.id,

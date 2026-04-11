@@ -10,22 +10,13 @@
  */
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase-server";
+import { requireAdmin } from "@/lib/admin-auth";
 import { fetchVideoMeta } from "@/lib/youtube-meta";
 import {
   buildChannelPath,
   descendantIds,
   type ChannelLike,
 } from "@/lib/channel-paths";
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/api/auth/signin?next=/admin");
-  return { supabase, user };
-}
 
 function slugify(s: string) {
   return s
@@ -40,7 +31,7 @@ function slugify(s: string) {
 // ─── Channels ──────────────────────────────────────────────────────────────
 
 export async function createChannel(formData: FormData) {
-  const { supabase, user } = await requireUser();
+  const { supabase, user } = await requireAdmin();
 
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
@@ -85,7 +76,7 @@ export async function updateChannel(
     parent_id?: string | null;
   }
 ) {
-  const { supabase, user } = await requireUser();
+  const { supabase, user, profile } = await requireAdmin();
 
   const clean: Record<string, string | null> = {};
   if (patch.name !== undefined) clean.name = patch.name.trim();
@@ -98,11 +89,14 @@ export async function updateChannel(
     const nextParent = patch.parent_id || null;
     if (nextParent) {
       // Cycle guard — can't set a parent that is the channel itself or a
-      // descendant of it.
-      const { data: allChannels } = await supabase
-        .from("channels")
-        .select("id, parent_id")
-        .eq("owner_id", user.id);
+      // descendant of it. God-mode users can move any channel, so the
+      // descendant check needs to see the full tree, not just their owned
+      // subset.
+      let cycleQuery = supabase.from("channels").select("id, parent_id");
+      if (!profile.god_mode) {
+        cycleQuery = cycleQuery.eq("owner_id", user.id);
+      }
+      const { data: allChannels } = await cycleQuery;
       const forbidden = descendantIds(
         channelId,
         (allChannels ?? []) as unknown as ChannelLike[]
@@ -140,7 +134,7 @@ export async function updateChannel(
 }
 
 export async function deleteChannel(channelId: string) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireAdmin();
   const { error } = await supabase
     .from("channels")
     .delete()
@@ -151,17 +145,21 @@ export async function deleteChannel(channelId: string) {
 }
 
 export async function reorderChannels(orderedIds: string[]) {
-  const { supabase, user } = await requireUser();
+  const { supabase, user, profile } = await requireAdmin();
 
-  // RLS enforces owner, but the .eq("owner_id", user.id) guards against a
-  // client sending another owner's channel id mixed into the list.
-  const updates = orderedIds.map((id, idx) =>
-    supabase
+  // RLS enforces owner for regular users. The .eq("owner_id", user.id) guard
+  // prevents a client from sneaking another owner's id into the list. For
+  // god_mode we drop that guard so admins can reorder any channel.
+  const updates = orderedIds.map((id, idx) => {
+    let q = supabase
       .from("channels")
       .update({ position: idx + 1 })
-      .eq("id", id)
-      .eq("owner_id", user.id)
-  );
+      .eq("id", id);
+    if (!profile.god_mode) {
+      q = q.eq("owner_id", user.id);
+    }
+    return q;
+  });
   const results = await Promise.all(updates);
   const firstError = results.find((r) => r.error)?.error;
   if (firstError) throw new Error(firstError.message);
@@ -173,7 +171,7 @@ export async function reorderChannels(orderedIds: string[]) {
 // ─── Videos ────────────────────────────────────────────────────────────────
 
 export async function addVideoByUrl(channelId: string, url: string) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireAdmin();
 
   const meta = await fetchVideoMeta(url);
   if (!meta) throw new Error("Could not fetch YouTube metadata for that URL");
@@ -208,7 +206,7 @@ export async function updateVideoTrim(
   start: number | null,
   end: number | null
 ) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireAdmin();
   const { error } = await supabase
     .from("videos")
     .update({ start_seconds: start, end_seconds: end })
@@ -218,7 +216,7 @@ export async function updateVideoTrim(
 }
 
 export async function deleteVideo(videoId: string) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireAdmin();
   const { error } = await supabase.from("videos").delete().eq("id", videoId);
   if (error) throw new Error(error.message);
   revalidatePath(`/admin/channels`);
@@ -228,7 +226,7 @@ export async function reorderVideos(
   channelId: string,
   orderedIds: string[]
 ) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireAdmin();
 
   // Update each row's position in parallel. RLS enforces ownership.
   const updates = orderedIds.map((id, idx) =>
