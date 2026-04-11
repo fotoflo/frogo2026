@@ -19,7 +19,7 @@ export async function requireAdmin() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/api/auth/signin?next=/admin");
+  if (!user) redirect("/login?next=/admin");
 
   // Use the service client for the profile lookup so it bypasses the
   // profiles_self_select RLS policy and can't mis-report god_mode.

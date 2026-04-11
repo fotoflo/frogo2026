@@ -9,10 +9,13 @@ export default async function AdminHome() {
   const { supabase, user, profile } = await requireAdmin();
 
   // God-mode users see everything; regular users only see their own channels.
+  // videos!videos_channel_id_fkey disambiguates the embed — there are two
+  // FKs between channels and videos (videos.channel_id and
+  // channels.og_first_video_id), and PostgREST refuses to guess.
   let query = supabase
     .from("channels")
     .select(
-      "id, name, slug, parent_id, description, icon, position, videos(count)"
+      "id, name, slug, parent_id, description, icon, position, videos!videos_channel_id_fkey(count)"
     );
   if (!profile.god_mode) {
     query = query.eq("owner_id", user.id);

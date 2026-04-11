@@ -16,7 +16,9 @@ async function getChannels(): Promise<MobileChannelListItem[]> {
   const supabase = createServiceClient();
   const { data: channels } = await supabase
     .from("channels")
-    .select("id, slug, parent_id, name, description, icon, videos(count)")
+    .select(
+      "id, slug, parent_id, name, description, icon, videos!videos_channel_id_fkey(count)"
+    )
     .order("position", { ascending: true, nullsFirst: false })
     .order("name");
   return (channels as MobileChannelListItem[] | null) ?? [];

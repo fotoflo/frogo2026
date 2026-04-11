@@ -16,7 +16,7 @@ export default async function NewChannelPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/api/auth/signin?next=/admin/channels/new");
+  if (!user) redirect("/login?next=/admin/channels/new");
 
   const { data: ownedChannels } = await supabase
     .from("channels")
