@@ -123,6 +123,8 @@ All tools are scoped to the authenticated user via `owner_id` — users can only
 | `list_channels` | — | Array of channels the caller owns: `id`, `name`, `slug`, `path`, `description`, `icon`, `parent_id`, `position`, `video_count`. |
 | `get_channel` | `id` _or_ `path` (e.g. `"business/startups"`) | One channel + ordered playlist (videos with `id`, `youtube_id`, `title`, `thumbnail_url`, `duration_seconds`, `start_seconds`, `end_seconds`, `position`). |
 | `create_channel` | `name` (required); optional `description`, `icon`, `slug`, `parent_id` _or_ `parent_path` | Creates a new owned channel. Slug derived from the name if omitted. Parent can be specified by uuid or URL path (`"business/startups"`) — mutually exclusive. |
+| `update_channel` | `id` (required); optional `name`, `slug`, `description`, `icon`, `parent_id` _or_ `parent_path` | Updates an existing owned channel. Omitted fields are unchanged. `parent_id: null` or `parent_path: ""` moves the channel to the root. Reparenting is validated — a channel can't become a descendant of itself (uses `descendantIds` from `channel-paths.ts`). |
+| `delete_channel` | `id` (required); optional `force` (boolean) | Deletes an owned channel and its videos. If the channel has sub-channels, the call is rejected unless `force: true` — in which case sub-channels are promoted to root (`parent_id` set to null via the `ON DELETE SET NULL` FK). |
 | `add_video` | `channel_id`, `url`; optional `title` and `duration_seconds` overrides | Appends to the channel's playlist. Title + duration normally fetched via `fetchVideoMeta`, but Vercel datacenter IPs sometimes hit YouTube's consent wall — passing overrides bypasses the server-side fetch. |
 | `delete_video` | `video_id` | Removes a video. Ownership checked via the video's channel. |
 | `reorder_videos` | `channel_id`, `ordered_video_ids[]` | Sets the playlist order. Unmentioned videos are appended at the end in their current order. |
@@ -150,9 +152,9 @@ YouTube serves an EU consent wall when the watch page is fetched from Vercel's d
 3. Claude hits the URL, gets the `401 + WWW-Authenticate` response, reads the protected-resource metadata at `/.well-known/oauth-protected-resource`, discovers the authorization server at `/.well-known/oauth-authorization-server`, and auto-runs Dynamic Client Registration against `/api/oauth/register`.
 4. A browser window opens to `/api/oauth/authorize`. Frogo bounces you to Supabase Google signin, then to `/api/oauth/consent`. Click **Authorize**.
 5. Browser redirects back into Claude with the auth code. Claude exchanges it for an access token at `/api/oauth/token` and stores it.
-6. Claude's tool list now shows `list_channels`, `get_channel`, `create_channel`, `add_video`, `delete_video`, `reorder_videos`.
+6. Claude's tool list now shows `list_channels`, `get_channel`, `create_channel`, `update_channel`, `delete_channel`, `add_video`, `delete_video`, `reorder_videos`.
 
-Try: _"List my Frogo channels"_, _"Create a channel called Test under business"_, _"Add https://youtube.com/watch?v=dQw4w9WgXcQ to the Jazz channel"_.
+Try: _"List my Frogo channels"_, _"Create a channel called Test under business"_, _"Rename the Test channel to Demo"_, _"Delete the Demo channel"_, _"Add https://youtube.com/watch?v=dQw4w9WgXcQ to the Jazz channel"_.
 
 ### Claude Code (CLI)
 

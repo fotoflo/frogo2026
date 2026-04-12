@@ -114,10 +114,30 @@ When Classic HUD is active, the minimal remote and broadcast lower-third are hid
 A collapsible 3-panel overlay inspired by the original frogo.tv interface. It has three display states managed by `HUDState`: `"expanded"`, `"collapsed"`, and `"minimized"`.
 
 **Panels:**
-- **Top Panel** (always visible when not minimized): Frogo logo, current channel number/icon/name, optional QR restore button (when QR was dismissed and phone is unpaired), Browse/Close toggle button
-- **Middle Content** (expanded only): Left sidebar with channel categories (derived from channel icons) and a right grid of channel tiles with thumbnails. Clicking a tile calls `onSwitchChannel(slug)`
+- **Top Panel** (always visible when not minimized): Frogo logo, current channel number/icon/name, breadcrumb trail showing the current scope path, optional QR restore button (when QR was dismissed and phone is unpaired), Browse/Close toggle button
+- **Middle Content** (expanded only): Two-column layout — left directory navigator + right channel tile grid. Clicking a tile calls `onSwitchChannel(id)`
 - **Playlist Strip** (collapsed/minimized only): Horizontal scrollable row of video thumbnails for the current channel. Active video marked with "NOW" badge. Clicking a thumbnail calls `onJumpToVideo(index)`
 - **Bottom Panel** (always visible): Interactive scrub bar, now-playing info (thumbnail + title + channel), time display, and playback controls (prev/play/next video, prev/next channel, fullscreen)
+
+**Channel Browser Layout (Middle Content):**
+
+The expanded channel browser uses a flex row (`.hud-content`) with two panels:
+
+- **Left Panel** (`.hud-left-panel`, 180px fixed width): A directory navigator that replaces the previous empty breadcrumb area. Contains:
+  - A "Directory" section header
+  - A "Home" button (navigates to root scope via `onNavigateToScope(null)`)
+  - Ancestor chain: each ancestor rendered as an indented button (depth = `12 + (i+1)*10` px left padding). Clicking navigates to that scope
+  - Sub-folder shortcuts: sibling channels that have children are listed with a folder icon, indented one level deeper than ancestors
+  - The current scope is highlighted with accent color and bold text
+  - Scrollable via `.hud-scroll` with custom thin scrollbar
+
+- **Right Panel** (`.hud-right-panel`, flex-grow): Responsive grid of channel tiles (`grid-cols-[repeat(auto-fill,minmax(150px,1fr))]`). Each tile shows:
+  - Thumbnail with aspect-video ratio, channel number badge (top-left), folder icon (top-right, if the channel has sub-channels), "PLAYING" pill (centered, for the active channel)
+  - Channel name + icon always visible below the thumbnail (no longer hidden until hover)
+
+**CSS layout:** The HUD wrapper (`.classic-hud`) uses `display: flex; flex-direction: column` with `max-height: min(70vh, 640px)` when expanded (previously used absolute positioning and fixed height). The middle content area uses `flex: 1 1 auto; min-height: 0; overflow: hidden` so the left and right panels can scroll independently.
+
+**Custom scrollbars:** Both `.hud-left-panel .hud-scroll` and `.hud-right-panel` use thin 6px custom scrollbars (`scrollbar-width: thin`) with translucent white thumbs, replacing chunky native scrollbars.
 
 **Interaction model:**
 - Mouse enter on the HUD area transitions from `minimized` to `collapsed`
@@ -129,7 +149,7 @@ A collapsible 3-panel overlay inspired by the original frogo.tv interface. It ha
 **Thumbnail validation:**
 The playlist strip probes YouTube thumbnails on load. If a thumbnail is 120x90px (YouTube's placeholder for unavailable videos) or fails to load, the video is hidden from the strip via a `badThumbs` Set.
 
-**CSS:** Styles for `.classic-hud`, `.hud-top-panel`, `.hud-content`, `.hud-bottom-panel`, etc. are in `src/app/globals.css`.
+**CSS:** Styles for `.classic-hud`, `.hud-top-panel`, `.hud-content`, `.hud-left-panel`, `.hud-right-panel`, `.hud-channel-tile`, `.hud-bottom-panel`, etc. are in `src/app/globals.css`.
 
 ### Minimal Remote (legacy default)
 

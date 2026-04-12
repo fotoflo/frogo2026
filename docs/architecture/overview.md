@@ -27,7 +27,7 @@ Frogo2026 is an always-on TV experience. Users tune into curated channels that b
 ## Data Model
 
 ### Channels
-Curated topic playlists. Each channel has a slug, name, description, and icon.
+Curated topic playlists forming a tree via `parent_id`. Each channel has a slug (unique among siblings), name, description, icon, and optional parent. Channels with children act as directories in the TV HUD; leaf channels are the actual playlists. See [Channel Hierarchy](channel-hierarchy.md) for the full tree model and navigation logic.
 - AI Programming, Philosophy, Buddhism, Kids Animals, Business
 
 ### Videos
@@ -64,8 +64,10 @@ Server components on `/`, `/watch/[slug]`, `/watch/[slug]/[videoId]`, and `/chan
 
 See also:
 - [TV Mode](tv-mode.md) — schedule system, client-side channel switching, YouTube player, on-screen chrome
+- [Channel Hierarchy](channel-hierarchy.md) — tree model, scoped navigation, breadcrumbs, directory navigator
 - [Pairing](pairing.md) — QR pairing flow, command protocol, Realtime subscription, e2e tests
 - [Mobile Experience](mobile-experience.md) — UA detection, /mobile route tree, on-demand playback
+- [MCP OAuth](mcp-oauth.md) — OAuth 2.1 AS, MCP server, channel CRUD tools (list, get, create, update, delete)
 
 ### OG Image Generation
 Each channel has a dynamic OpenGraph image (1200x630 JPEG) generated via `next/og` and cached in Supabase Storage. See [OG Images](og-images.md) for the full caching and compression pipeline.
@@ -95,23 +97,27 @@ The `AnalyticsProvider` client component wraps the app and fires `analytics.page
 - `src/app/mobile/channel/[slug]/page.tsx` -- Mobile channel playlist
 - `src/app/mobile/watch/[slug]/[videoId]/page.tsx` -- Mobile video watch (server)
 - `src/app/mobile/watch/[slug]/[videoId]/MobileWatchClient.tsx` -- Mobile video player (client)
-- `src/app/watch/[slug]/page.tsx` -- Channel watch server component (video filtering, mobile redirect)
-- `src/app/watch/[slug]/TVClient.tsx` -- Fullscreen TV client (schedule, remote, QR)
+- `src/app/watch/[...slug]/page.tsx` -- Channel watch server component (resolves multi-segment paths, video filtering, mobile redirect)
+- `src/app/watch/[...slug]/TVClient.tsx` -- Fullscreen TV client (schedule, remote, QR, scoped directory navigation)
 - `src/app/watch/[slug]/opengraph-image.tsx` -- Dynamic OG image per channel
 - `src/app/pair/page.tsx` -- Phone remote UI
 - `src/lib/schedule.ts` -- Broadcast schedule logic
 - `src/lib/youtube-check.ts` -- YouTube oEmbed availability check
+- `src/lib/channel-paths.ts` -- Channel tree helpers (path building, resolution, siblings, ancestors, descendants)
 - `src/lib/supabase.ts` -- Database client
 - `src/lib/types.ts` -- TypeScript interfaces
+- `src/components/ClassicHUD.tsx` -- TV heads-up display (breadcrumbs, directory navigator, scoped channel grid, player controls)
 - `src/components/YouTubePlayer.tsx` -- YouTube player; `controls` and `muted` props switch between TV and mobile modes
 - `src/components/MiniQR.tsx` -- QR code overlay on TV screen
 - `src/components/OnScreenRemote.tsx` -- On-screen remote overlay (mini + expanded)
 - `src/app/api/pair/route.ts` -- Session creation
 - `src/app/api/pair/join/route.ts` -- Phone join by code
+- `src/app/api/mcp/route.ts` -- MCP Streamable HTTP endpoint (JSON-RPC 2.0, full channel CRUD + video tools)
 - `src/app/api/search/route.ts` -- Video search API
 - `src/app/api/tunnel-url/route.ts` -- ngrok tunnel URL endpoint
 - `src/app/api/network-ip/route.ts` -- Local network IP for QR codes
 - `src/lib/pairing.e2e.test.ts` -- E2E pairing lifecycle tests
+- `vitest.config.ts` -- Vitest config with `@/` path alias resolution
 - `scripts/dev.mjs` -- Dev server with port kill + ngrok tunnel
 - `supabase/schema.sql` -- Database schema
 - `supabase/seed.sql` -- Seed data
