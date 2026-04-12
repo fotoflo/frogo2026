@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import YouTubePlayer from "@/components/YouTubePlayer";
 import MiniQR from "@/components/MiniQR";
 import OnScreenRemote from "@/components/OnScreenRemote";
@@ -12,6 +12,11 @@ import { FEATURES } from "@/lib/settings";
 import { useInteractions } from "@/lib/useInteractions";
 import { useViewerPresence } from "@/lib/useViewerPresence";
 import ViewersMap from "@/components/ViewersMap";
+import {
+  getAncestors,
+  getSiblingsAt,
+  hasChildren,
+} from "@/lib/channel-paths";
 
 interface Video {
   id: string;
@@ -63,6 +68,31 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
   // Current channel (client-side state — no navigation)
   const [channelIdx, setChannelIdx] = useState(initialChannelIndex);
   const channel = channels[channelIdx];
+
+  // ─── Directory scope ────────────────────────────────────────────────────
+  // `scopeId` is the id of the "folder" the user is currently browsing.
+  // null = root level. When the current channel has children it becomes the
+  // scope itself (you're "inside" it); otherwise the scope is its parent.
+  // Up/Down and number keys stay within siblings at this scope.
+  const initialScopeId = useMemo(() => {
+    const c = channels[initialChannelIndex];
+    if (!c) return null;
+    return hasChildren(c.id, channels) ? c.id : c.parent_id;
+  }, [channels, initialChannelIndex]);
+  const [scopeId, setScopeId] = useState<string | null>(initialScopeId);
+
+  const siblings = useMemo(
+    () => getSiblingsAt(scopeId, channels),
+    [scopeId, channels]
+  );
+  const ancestors = useMemo(
+    () => getAncestors(scopeId, channels),
+    [scopeId, channels]
+  );
+  const siblingIdx = useMemo(
+    () => siblings.findIndex((c) => c.id === channel.id),
+    [siblings, channel.id]
+  );
 
   // Viewer presence map
   const { viewers, myLocation, viewerCount } = useViewerPresence(channel.slug);
@@ -220,37 +250,52 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
     setAutoplay((s) => autoplayTransition(s, { type: "PLAYER_READY" }));
   }, []);
 
-  // Channel switching — just state changes, no navigation
-  const switchToChannel = useCallback(
-    (idx: number) => {
-      const wrapped = ((idx % channels.length) + channels.length) % channels.length;
-      setChannelIdx(wrapped);
-      trackEvent("channel_switch", { slug: channels[wrapped].slug, channelIdx: wrapped });
+  // ─── Channel switching (scope-aware) ────────────────────────────────────
+  // Switch to a channel by id. The scope follows the target: if the target
+  // has children, the user is "entering" that folder (scope = target.id);
+  // otherwise the scope is the target's parent. This keeps Up/Down cycling
+  // within siblings even after an explicit jump from the breadcrumb or grid.
+  const switchChannelById = useCallback(
+    (id: string) => {
+      const idx = channels.findIndex((c) => c.id === id);
+      if (idx < 0) return;
+      const target = channels[idx];
+      const newScope = hasChildren(target.id, channels)
+        ? target.id
+        : target.parent_id;
+      setScopeId(newScope);
+      setChannelIdx(idx);
+      trackEvent("channel_switch", { slug: target.slug, channelIdx: idx });
       // Update URL without navigation for bookmarkability
       window.history.replaceState(
         null,
         "",
-        `/watch/${channels[wrapped].path.join("/")}`
+        `/watch/${target.path.join("/")}`
       );
     },
     [channels, trackEvent]
   );
 
-  const switchChannelById = useCallback(
-    (id: string) => {
-      const idx = channels.findIndex((c) => c.id === id);
-      if (idx >= 0) switchToChannel(idx);
+  // Cycle within the current scope's siblings (for Up/Down arrows and the
+  // phone remote's prev/next). Wraps at the ends. If the current channel is
+  // somehow not in the sibling list (shouldn't happen), treats index as 0.
+  const switchToSiblingIdx = useCallback(
+    (idx: number) => {
+      if (siblings.length === 0) return;
+      const wrapped = ((idx % siblings.length) + siblings.length) % siblings.length;
+      const target = siblings[wrapped];
+      switchChannelById(target.id);
     },
-    [channels, switchToChannel]
+    [siblings, switchChannelById]
   );
 
   const nextChannel = useCallback(() => {
-    switchToChannel(channelIdx + 1);
-  }, [channelIdx, switchToChannel]);
+    switchToSiblingIdx((siblingIdx < 0 ? 0 : siblingIdx) + 1);
+  }, [siblingIdx, switchToSiblingIdx]);
 
   const prevChannel = useCallback(() => {
-    switchToChannel(channelIdx - 1);
-  }, [channelIdx, switchToChannel]);
+    switchToSiblingIdx((siblingIdx < 0 ? 0 : siblingIdx) - 1);
+  }, [siblingIdx, switchToSiblingIdx]);
 
   // Handle remote commands
   const handleCommand = useCallback(
@@ -265,14 +310,14 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
         default:
           if (command.startsWith("channel_")) {
             const num = parseInt(command.split("_")[1], 10);
-            switchToChannel(num - 1);
+            switchToSiblingIdx(num - 1);
           } else if (command.startsWith("navigate_")) {
             const id = command.replace("navigate_", "");
             switchChannelById(id);
           }
       }
     },
-    [nextChannel, prevChannel, switchToChannel, switchChannelById]
+    [nextChannel, prevChannel, switchToSiblingIdx, switchChannelById]
   );
 
   // Supabase Realtime for remote control (single persistent subscription)
@@ -382,7 +427,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
         channelNumberTimeoutRef.current = setTimeout(() => {
           const num = parseInt(newNumber, 10);
           if (num >= 1) {
-            switchToChannel(num - 1);
+            switchToSiblingIdx(num - 1);
           }
           setChannelNumber("");
           setTimeout(() => setShowBanner(false), 3000);
@@ -413,7 +458,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [channelNumber, switchToChannel, nextChannel, prevChannel, handleScreenClick]);
+  }, [channelNumber, switchToSiblingIdx, nextChannel, prevChannel, handleScreenClick]);
 
   // Show viewers map when a new viewer joins (2+), auto-dismiss after 15s
   useEffect(() => {
@@ -515,7 +560,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
               <div className="flex-1 min-w-0 py-1">
                 {/* Channel line */}
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-accent font-mono text-xs font-bold">{channelIdx + 1}</span>
+                  <span className="text-accent font-mono text-xs font-bold">{(siblingIdx < 0 ? 0 : siblingIdx) + 1}</span>
                   <span className="text-base">{channel.icon}</span>
                   <span className="text-xs font-semibold text-white/60 uppercase tracking-wider">{channel.name}</span>
                 </div>
@@ -608,13 +653,28 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
           >
             <ClassicHUD
               channel={channel}
-              channelIdx={channelIdx}
+              siblingIdx={siblingIdx}
               allChannels={channels}
+              siblings={siblings}
+              ancestors={ancestors}
               activeVideo={activeVideo}
               currentVideoIndex={currentVideoIndex}
               playerRef={playerRef}
               onSwitchChannel={(id) => {
                 switchChannelById(id);
+                setShowRemote(false);
+              }}
+              onNavigateToScope={(id) => {
+                // Clicking a breadcrumb jumps to that ancestor channel,
+                // which implicitly re-scopes to it (or its parent).
+                if (id === null) {
+                  // Home: clear scope and switch to first root channel.
+                  const roots = getSiblingsAt(null, channels);
+                  if (roots.length > 0) switchChannelById(roots[0].id);
+                  setScopeId(null);
+                } else {
+                  switchChannelById(id);
+                }
                 setShowRemote(false);
               }}
               onPrevChannel={prevChannel}

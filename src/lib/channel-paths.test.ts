@@ -3,6 +3,9 @@ import {
   buildChannelPath,
   descendantIds,
   findChannelByPath,
+  getAncestors,
+  getSiblingsAt,
+  hasChildren,
   watchHref,
 } from "./channel-paths";
 
@@ -80,5 +83,57 @@ describe("descendantIds", () => {
 describe("watchHref", () => {
   it("builds /watch/a/b", () => {
     expect(watchHref(channels[1], channels)).toBe("/watch/business/startups");
+  });
+});
+
+describe("getSiblingsAt", () => {
+  it("returns root-level channels for null scope", () => {
+    expect(getSiblingsAt(null, channels).map((c) => c.id)).toEqual(["b", "t"]);
+  });
+
+  it("returns children of a folder", () => {
+    expect(getSiblingsAt("b", channels).map((c) => c.id)).toEqual(["s"]);
+  });
+
+  it("distinguishes same-slug siblings under different parents", () => {
+    expect(getSiblingsAt("t", channels).map((c) => c.id)).toEqual(["ts"]);
+  });
+
+  it("returns empty array for leaf scope", () => {
+    expect(getSiblingsAt("sd", channels)).toEqual([]);
+  });
+});
+
+describe("getAncestors", () => {
+  it("returns empty for null scope", () => {
+    expect(getAncestors(null, channels)).toEqual([]);
+  });
+
+  it("returns single ancestor for root folder", () => {
+    expect(getAncestors("b", channels).map((c) => c.id)).toEqual(["b"]);
+  });
+
+  it("returns root→leaf chain for nested scope", () => {
+    expect(getAncestors("sd", channels).map((c) => c.id)).toEqual([
+      "b",
+      "s",
+      "sd",
+    ]);
+  });
+
+  it("returns empty for unknown scope id", () => {
+    expect(getAncestors("nope", channels)).toEqual([]);
+  });
+});
+
+describe("hasChildren", () => {
+  it("true for folder channel", () => {
+    expect(hasChildren("b", channels)).toBe(true);
+    expect(hasChildren("s", channels)).toBe(true);
+  });
+
+  it("false for leaf channel", () => {
+    expect(hasChildren("sd", channels)).toBe(false);
+    expect(hasChildren("ts", channels)).toBe(false);
   });
 });

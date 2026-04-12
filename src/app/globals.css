@@ -165,24 +165,26 @@ body {
   bottom: 8%;
   width: 90%;
   min-width: 400px;
+  max-width: 1400px;
   background: rgba(30, 30, 40, 0.92);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
-  transition: height 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+  display: flex;
+  flex-direction: column;
+  transition: max-height 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
 }
 
 .classic-hud.expanded {
-  height: 65%;
-  min-height: 320px;
+  max-height: min(70vh, 640px);
 }
-.classic-hud.collapsed {
-  height: auto;
+.classic-hud.collapsed,
+.classic-hud.minimized {
+  max-height: none;
 }
 .classic-hud.minimized {
-  height: auto;
   opacity: 0.85;
 }
 .classic-hud.minimized:hover {
@@ -191,6 +193,7 @@ body {
 
 /* Top panel */
 .hud-top-panel {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -202,42 +205,70 @@ body {
 /* Middle content */
 .hud-content {
   display: flex;
-  position: absolute;
-  top: 36px;
-  left: 0;
-  right: 0;
-  bottom: 56px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 
-/* Left panel — categories */
+/* Left panel — directory tree */
 .hud-left-panel {
-  width: 130px;
+  width: 180px;
+  flex-shrink: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.04);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 /* Right panel — channel grid */
 .hud-right-panel {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* Thin custom scrollbars inside the HUD */
+.hud-left-panel .hud-scroll,
+.hud-right-panel {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+.hud-left-panel .hud-scroll::-webkit-scrollbar,
+.hud-right-panel::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.hud-left-panel .hud-scroll::-webkit-scrollbar-track,
+.hud-right-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.hud-left-panel .hud-scroll::-webkit-scrollbar-thumb,
+.hud-right-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+.hud-left-panel .hud-scroll::-webkit-scrollbar-thumb:hover,
+.hud-right-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
 }
 
 /* Channel tile hover */
 .hud-channel-tile {
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  text-align: left;
 }
 .hud-channel-tile:hover {
-  transform: scale(1.03);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+}
+.hud-channel-tile:hover .hud-channel-thumb {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
 }
 
 /* Playlist strip (collapsed/minimized) */
 .hud-playlist-strip {
+  flex: 0 0 auto;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -245,18 +276,13 @@ body {
 
 /* Bottom panel */
 .hud-bottom-panel {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 6px 12px;
   height: 52px;
   position: relative;
-}
-.classic-hud.expanded .hud-bottom-panel {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 

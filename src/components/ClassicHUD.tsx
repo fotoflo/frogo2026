@@ -27,12 +27,19 @@ type YTPlayer = any;
 
 interface ClassicHUDProps {
   channel: Channel;
-  channelIdx: number;
+  /** Index of `channel` within `siblings` (i.e. the local channel number). */
+  siblingIdx: number;
   allChannels: Channel[];
+  /** Channels at the current directory scope — drives the grid + channel #. */
+  siblings: Channel[];
+  /** Root→scope ancestor chain, empty at root. Renders as breadcrumbs. */
+  ancestors: Channel[];
   activeVideo: Video | null;
   currentVideoIndex: number;
   playerRef: React.RefObject<YTPlayer | null>;
   onSwitchChannel: (channelId: string) => void;
+  /** Jump to an ancestor scope from a breadcrumb. `null` = Home (root). */
+  onNavigateToScope: (channelId: string | null) => void;
   onPrevChannel: () => void;
   onNextChannel: () => void;
   onNextVideo: () => void;
@@ -54,12 +61,15 @@ function formatTime(seconds: number): string {
 
 export default function ClassicHUD({
   channel,
-  channelIdx,
+  siblingIdx,
   allChannels,
+  siblings,
+  ancestors,
   activeVideo,
   currentVideoIndex,
   playerRef,
   onSwitchChannel,
+  onNavigateToScope,
   onPrevChannel,
   onNextChannel,
   onNextVideo,
@@ -71,7 +81,6 @@ export default function ClassicHUD({
   onVote,
 }: ClassicHUDProps) {
   const [hudState, setHUDState] = useState<HUDState>("minimized");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
   const [badThumbs, setBadThumbs] = useState<Set<string>>(new Set());
 
@@ -168,11 +177,9 @@ export default function ClassicHUD({
     }
   }
 
-  const categories = Array.from(new Set(allChannels.map((c) => c.icon)));
-  const filteredChannels = selectedCategory
-    ? allChannels.filter((c) => c.icon === selectedCategory)
-    : allChannels;
   const playlistVideos = channel.videos;
+  /** Local channel number within the current scope (1-indexed). */
+  const localChannelNumber = (siblingIdx < 0 ? 0 : siblingIdx) + 1;
 
   return (
     <div
@@ -186,10 +193,56 @@ export default function ClassicHUD({
         <div className="flex items-center gap-3 min-w-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/images/frogo/logo.png" alt="frogo.tv" className="h-7 opacity-70 shrink-0" />
-          <span className="text-sm text-white/60 truncate">
-            <span className="text-accent font-mono mr-1">{channelIdx + 1}</span>
-            {channel.icon} {channel.name}
-          </span>
+          {/* Breadcrumbs — Home › Kids › Maruko */}
+          <nav
+            className="flex items-center gap-1 text-sm text-white/60 truncate min-w-0"
+            aria-label="Channel breadcrumbs"
+          >
+            <button
+              onClick={() => onNavigateToScope(null)}
+              className="text-white/40 hover:text-white/80 transition-colors shrink-0"
+              aria-label="Go to home"
+            >
+              Home
+            </button>
+            {ancestors.map((a) => {
+              const isCurrent = a.id === channel.id;
+              return (
+                <span key={a.id} className="flex items-center gap-1 min-w-0">
+                  <span className="text-white/25" aria-hidden="true">›</span>
+                  {isCurrent ? (
+                    <span className="text-white/80 truncate" aria-current="page">
+                      <span className="text-accent font-mono mr-1">
+                        {localChannelNumber}
+                      </span>
+                      {a.icon} {a.name}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => onNavigateToScope(a.id)}
+                      className="text-white/40 hover:text-white/80 transition-colors truncate"
+                    >
+                      {a.icon} {a.name}
+                    </button>
+                  )}
+                </span>
+              );
+            })}
+            {/* Show the current channel when it's not already in the ancestor
+                chain (leaf case — ancestors ends at the scope folder, not at
+                the leaf channel). */}
+            {!ancestors.some((a) => a.id === channel.id) && (
+              <span className="flex items-center gap-1 min-w-0">
+                <span className="text-white/25" aria-hidden="true">›</span>
+                <span className="text-white/80 truncate" aria-current="page">
+                  <span className="text-accent font-mono mr-1">
+                    {localChannelNumber}
+                  </span>
+                  {channel.icon} {channel.name}
+                </span>
+              </span>
+            )}
+          </nav>
         </div>
         <div className="flex items-center gap-1">
           {showQRButton && onShowQR && (
@@ -218,79 +271,127 @@ export default function ClassicHUD({
       {/* ─── Middle Content (only when expanded) ─── */}
       {hudState === "expanded" && (
         <div className="hud-content">
-          {/* Left Panel — Categories */}
+          {/* Left Panel — directory navigator */}
           <div className="hud-left-panel">
-            <h3 className="text-sm font-bold text-accent px-3 py-2 tracking-wider uppercase">
-              Channels
+            <h3 className="text-[10px] font-semibold text-white/40 px-3 pt-2.5 pb-1.5 tracking-[0.12em] uppercase">
+              Directory
             </h3>
-            <div className="space-y-0.5 overflow-y-auto flex-1" role="group" aria-label="Filter by category">
+            <div
+              className="hud-scroll flex-1 overflow-y-auto pb-2"
+              role="group"
+              aria-label="Directory navigation"
+            >
               <button
-                onClick={() => setSelectedCategory(null)}
-                aria-pressed={!selectedCategory}
-                className={`w-full text-right px-3 py-1.5 text-sm transition-colors ${
-                  !selectedCategory ? "text-accent font-bold" : "text-white/50 hover:text-white/80"
+                onClick={() => onNavigateToScope(null)}
+                aria-pressed={ancestors.length === 0}
+                className={`w-full text-left px-3 py-1.5 text-[13px] flex items-center gap-1.5 transition-colors ${
+                  ancestors.length === 0
+                    ? "text-accent font-bold bg-white/[0.04]"
+                    : "text-white/55 hover:text-white/90 hover:bg-white/[0.03]"
                 }`}
               >
-                All
+                <span aria-hidden="true">🏠</span>
+                <span className="truncate">Home</span>
               </button>
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  aria-pressed={selectedCategory === cat}
-                  className={`w-full text-right px-3 py-1.5 text-sm transition-colors ${
-                    selectedCategory === cat
-                      ? "text-accent font-bold text-base"
-                      : "text-white/50 hover:text-white/80"
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
+              {ancestors.map((a, i) => {
+                const isDeepest = i === ancestors.length - 1;
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => onNavigateToScope(a.id)}
+                    aria-pressed={isDeepest}
+                    className={`w-full text-left py-1.5 text-[13px] flex items-center gap-1.5 truncate transition-colors ${
+                      isDeepest
+                        ? "text-accent font-bold bg-white/[0.04]"
+                        : "text-white/55 hover:text-white/90 hover:bg-white/[0.03]"
+                    }`}
+                    style={{
+                      paddingLeft: `${12 + (i + 1) * 10}px`,
+                      paddingRight: "12px",
+                    }}
+                  >
+                    <span aria-hidden="true">{a.icon}</span>
+                    <span className="truncate">{a.name}</span>
+                  </button>
+                );
+              })}
+              {/* Sub-folders at the current scope — quick-jump shortcuts. */}
+              {siblings
+                .filter((s) => allChannels.some((c) => c.parent_id === s.id))
+                .map((f) => {
+                  const depth = ancestors.length + 1;
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => onSwitchChannel(f.id)}
+                      className="w-full text-left py-1.5 text-[13px] flex items-center gap-1.5 truncate text-white/45 hover:text-white/90 hover:bg-white/[0.03] transition-colors"
+                      style={{
+                        paddingLeft: `${12 + depth * 10}px`,
+                        paddingRight: "12px",
+                      }}
+                    >
+                      <span aria-hidden="true">📁</span>
+                      <span className="truncate">{f.name}</span>
+                    </button>
+                  );
+                })}
             </div>
           </div>
 
-          {/* Right Panel — Channel Grid */}
+          {/* Right Panel — Channel Grid, scoped to siblings at current level */}
           <div className="hud-right-panel">
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 p-2">
-              {filteredChannels.map((ch, i) => {
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-x-3 gap-y-3 p-3">
+              {siblings.map((ch, i) => {
                 const isPlaying = ch.id === channel.id;
                 const firstVideo = ch.videos[0];
                 const thumbUrl = firstVideo?.thumbnail_url ||
                   `https://img.youtube.com/vi/${firstVideo?.youtube_id}/mqdefault.jpg`;
+                const isFolder = allChannels.some((c) => c.parent_id === ch.id);
                 return (
                   <button
                     key={ch.id}
                     onClick={() => onSwitchChannel(ch.id)}
-                    aria-label={`Switch to ${ch.name}${isPlaying ? " (currently playing)" : ""}`}
+                    aria-label={`Switch to ${ch.name}${isPlaying ? " (currently playing)" : ""}${isFolder ? " (contains sub-channels)" : ""}`}
                     aria-current={isPlaying ? "true" : undefined}
-                    className={`hud-channel-tile group relative rounded-lg overflow-hidden ${
-                      isPlaying ? "ring-2 ring-accent" : ""
-                    }`}
+                    className="hud-channel-tile group flex flex-col"
                   >
-                    <div className="aspect-video bg-black/50">
+                    <div
+                      className={`hud-channel-thumb aspect-video bg-black/50 relative rounded-md overflow-hidden ${
+                        isPlaying ? "ring-2 ring-accent" : "ring-1 ring-white/5"
+                      }`}
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={thumbUrl} alt="" aria-hidden="true" className="w-full h-full object-cover" />
-                    </div>
-                    {isPlaying && (
-                      <>
-                        <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/90 text-black text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider" aria-hidden="true">
-                          PLAYING
-                        </div>
-                      </>
-                    )}
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm p-1.5 translate-y-full group-hover:translate-y-0 transition-transform" aria-hidden="true">
-                      <span className="text-[11px] text-white/80 line-clamp-1">
-                        <span className="text-white/40 font-mono mr-1">{allChannels.indexOf(ch) + 1}</span>
-                        {ch.icon} {ch.name}
-                      </span>
-                    </div>
-                    {!isPlaying && (
-                      <div className="absolute top-1 left-1 text-[10px] font-mono text-white/40 bg-black/40 px-1 rounded" aria-hidden="true">
+                      {isPlaying && (
+                        <>
+                          <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/90 text-black text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider" aria-hidden="true">
+                            PLAYING
+                          </div>
+                        </>
+                      )}
+                      <div className="absolute top-1 left-1 text-[10px] font-mono text-white/80 bg-black/60 px-1 rounded" aria-hidden="true">
                         {i + 1}
                       </div>
-                    )}
+                      {isFolder && (
+                        <div
+                          className="absolute top-1 right-1 text-[10px] text-white/80 bg-black/60 px-1 rounded"
+                          aria-hidden="true"
+                          title="Contains sub-channels"
+                        >
+                          📁
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-1.5 px-0.5">
+                      <div
+                        className={`text-[12px] leading-tight line-clamp-2 ${
+                          isPlaying ? "text-accent font-semibold" : "text-white/80"
+                        }`}
+                      >
+                        {ch.icon} {ch.name}
+                      </div>
+                    </div>
                   </button>
                 );
               })}
@@ -435,7 +536,12 @@ export default function ClassicHUD({
               <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z" />
             </svg>
           </button>
-          <span className="text-xs font-mono text-accent/80 w-6 text-center" aria-label={`Channel ${channelIdx + 1}`}>{channelIdx + 1}</span>
+          <span
+            className="text-xs font-mono text-accent/80 w-6 text-center"
+            aria-label={`Channel ${localChannelNumber}`}
+          >
+            {localChannelNumber}
+          </span>
           <button onClick={onNextChannel} className="hud-ctrl-btn" title="Next Channel" aria-label="Next channel">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />

@@ -70,6 +70,58 @@ export function findChannelByPath<C extends ChannelLike>(
 }
 
 /**
+ * Return all channels that share a given parent (i.e. siblings at that
+ * directory level). Pass `null` for root-level channels. Preserves the
+ * order of `allChannels`, which callers typically sort by `position`.
+ */
+export function getSiblingsAt<C extends ChannelLike>(
+  scopeId: string | null,
+  allChannels: readonly C[]
+): C[] {
+  return allChannels.filter((c) => (c.parent_id ?? null) === scopeId);
+}
+
+/**
+ * Return the ancestor chain from root down to (and including) the scope
+ * channel. `scopeId = null` → empty array (root has no ancestors).
+ *
+ * Cycle-safe like `buildChannelPath`.
+ */
+export function getAncestors<C extends ChannelLike>(
+  scopeId: string | null,
+  allChannels: readonly C[]
+): C[] {
+  if (!scopeId) return [];
+  const byId = new Map(allChannels.map((c) => [c.id, c]));
+  const chain: C[] = [];
+  const seen = new Set<string>();
+  let currentId: string | null = scopeId;
+  let hops = 0;
+
+  while (currentId && hops < 32) {
+    if (seen.has(currentId)) break;
+    seen.add(currentId);
+    const c = byId.get(currentId);
+    if (!c) break;
+    chain.unshift(c);
+    currentId = c.parent_id ?? null;
+    hops += 1;
+  }
+
+  return chain;
+}
+
+/**
+ * True when `channelId` has any direct children in the channel tree.
+ */
+export function hasChildren<C extends ChannelLike>(
+  channelId: string,
+  allChannels: readonly C[]
+): boolean {
+  return allChannels.some((c) => c.parent_id === channelId);
+}
+
+/**
  * Return the set of channel ids that are descendants of `channelId`
  * (including itself). Used by the admin parent picker to prevent cycles —
  * a channel can't become a descendant of itself.
