@@ -126,7 +126,7 @@ export async function POST(request: Request) {
         return NextResponse.json(
           rpcResult(body.id, {
             protocolVersion: PROTOCOL_VERSION,
-            capabilities: { tools: { listChanged: false } },
+            capabilities: { tools: { listChanged: true } },
             serverInfo: SERVER_INFO,
           })
         );
@@ -197,8 +197,8 @@ export async function GET(request: Request) {
   // says a server MAY return 405, but the Claude.ai connector client chokes
   // on it (surfaces as an "invalid_request_error: Method Not Allowed"
   // wrapped in Anthropic's error envelope). So we open an empty event
-  // stream: auth-gated like POST, sends a single SSE comment to establish
-  // the connection, then stays silent — we have no notifications to push.
+  // stream: auth-gated like POST, sends a single SSE comment + a tools
+  // list_changed notification, then stays open with heartbeats.
   const service = createServiceClient();
   const auth = await resolveBearerToken(
     service,
@@ -213,6 +213,16 @@ export async function GET(request: Request) {
       // SSE comment line — a valid "hello" that doesn't trigger any event
       // handler on the client but does flush headers and open the stream.
       controller.enqueue(encoder.encode(": connected\n\n"));
+      // Push a tools/list_changed notification on every connect. Vercel
+      // cycles function instances on deploy, which kills SSE streams; when
+      // the client reconnects, this notification tells it to re-fetch
+      // tools/list and pick up any newly registered tools without the user
+      // having to manually disconnect/reconnect the connector.
+      const notification = JSON.stringify({
+        jsonrpc: "2.0",
+        method: "notifications/tools/list_changed",
+      });
+      controller.enqueue(encoder.encode(`data: ${notification}\n\n`));
       // Heartbeat every 15s so intermediaries (Vercel's edge, load balancers)
       // don't idle-close the connection. Cleanup when client disconnects.
       const interval = setInterval(() => {
