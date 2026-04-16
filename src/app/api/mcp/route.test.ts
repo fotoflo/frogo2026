@@ -186,6 +186,7 @@ describe("POST /api/mcp — standard methods", () => {
       "import_youtube_channel",
       "list_videos",
       "delete_video",
+      "delete_videos_bulk",
       "update_video",
       "refresh_video_metadata",
       "reorder_videos",

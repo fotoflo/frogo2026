@@ -19,6 +19,7 @@ import { importYoutubePlaylist } from "./tools/import-youtube-playlist";
 import { importYoutubeChannel } from "./tools/import-youtube-channel";
 import { listVideos } from "./tools/list-videos";
 import { deleteVideo } from "./tools/delete-video";
+import { deleteVideosBulk } from "./tools/delete-videos-bulk";
 import { updateVideo } from "./tools/update-video";
 import { refreshVideoMetadata } from "./tools/refresh-video-metadata";
 import { reorderVideos } from "./tools/reorder-videos";
@@ -38,6 +39,7 @@ const ALL: Tool<never>[] = [
   importYoutubeChannel,
   listVideos,
   deleteVideo,
+  deleteVideosBulk,
   updateVideo,
   refreshVideoMetadata,
   reorderVideos,
