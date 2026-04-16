@@ -106,7 +106,7 @@ The `AnalyticsProvider` client component wraps the app and fires `analytics.page
 - `src/lib/channel-paths.ts` -- Channel tree helpers (path building, resolution, siblings, ancestors, descendants)
 - `src/lib/supabase.ts` -- Database client
 - `src/lib/types.ts` -- TypeScript interfaces
-- `src/components/ClassicHUD.tsx` -- TV heads-up display (breadcrumbs, directory navigator, scoped channel grid, player controls)
+- `src/components/ClassicHUD/` -- TV heads-up display (breadcrumbs, directory navigator, scoped channel grid, player controls); split into `index.tsx` shell + `TopPanel` / `Directory` / `ChannelGrid` / `PlaylistStrip` / `BottomPanel` sub-components and a `useProgress` hook
 - `src/components/YouTubePlayer.tsx` -- YouTube player; `controls` and `muted` props switch between TV and mobile modes
 - `src/components/MiniQR.tsx` -- QR code overlay on TV screen
 - `src/components/OnScreenRemote.tsx` -- On-screen remote overlay (mini + expanded)

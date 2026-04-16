@@ -8,7 +8,7 @@ Channels form a tree via the `parent_id` column. A channel with `parent_id = nul
 - `src/lib/channel-paths.test.ts` — unit tests for the tree helpers.
 - `src/app/watch/[...slug]/page.tsx` — server component. The `[...slug]` catch-all resolves multi-segment paths (e.g. `/watch/business/startups`) by walking the tree via `findChannelByPath`. Computes `path` (root-to-leaf slug array) for every channel before passing them to the client.
 - `src/app/watch/[...slug]/TVClient.tsx` — client component. Maintains `scopeId` state that tracks which directory the viewer is browsing. Derives `siblings`, `ancestors`, and `siblingIdx` via the channel-paths helpers.
-- `src/components/ClassicHUD.tsx` — renders the breadcrumb trail, directory navigator (left panel), and scoped channel grid (right panel) when the HUD is expanded.
+- `src/components/ClassicHUD/` — renders the breadcrumb trail (`TopPanel.tsx`), directory navigator (`Directory.tsx`, left panel), and scoped channel grid (`ChannelGrid.tsx`, right panel) when the HUD is expanded.
 
 ## Data Model
 

@@ -8,7 +8,7 @@ The TV mode is the core experience of Frogo2026. The app behaves like a real tel
 - `src/app/watch/[slug]/TVClient.tsx` — client component: all TV playback logic
 - `src/components/YouTubePlayer.tsx` — YouTube IFrame API wrapper
 - `src/components/OnScreenRemote.tsx` — mini and expanded on-screen remote
-- `src/components/ClassicHUD.tsx` — classic frogo.tv HUD overlay (channel browser + controls)
+- `src/components/ClassicHUD/` — classic frogo.tv HUD overlay (channel browser + controls), split into sub-components
 - `src/components/MiniQR.tsx` — QR code overlay
 - `src/lib/schedule.ts` — broadcast schedule calculation (`whatsOnNow`)
 - `src/lib/settings.ts` — feature flags (`FEATURES.CLASSIC_HUD`, etc.)
@@ -109,9 +109,19 @@ The TV has two chrome modes, toggled by the `FEATURES.CLASSIC_HUD` flag in `src/
 
 When Classic HUD is active, the minimal remote and broadcast lower-third are hidden. `TVClient` conditionally renders one or the other based on the flag.
 
-### Classic HUD (`src/components/ClassicHUD.tsx`)
+### Classic HUD (`src/components/ClassicHUD/`)
 
 A collapsible 3-panel overlay inspired by the original frogo.tv interface. It has three display states managed by `HUDState`: `"expanded"`, `"collapsed"`, and `"minimized"`.
+
+**Folder layout:**
+- `index.tsx` — main shell: owns `HUDState`, idle-auto-collapse timers, mouse-enter transitions, and composes the sub-components
+- `types.ts` — shared `HUDState` type and prop interfaces used across sub-components
+- `useProgress.ts` — custom hook that polls the YouTube player every 500ms for `currentTime`/`duration` and exposes mousedown/move/up scrub handlers; extracted so the shell stays state-free about playback
+- `TopPanel.tsx` — logo, channel number/icon/name, breadcrumb trail, QR restore button, Browse/Close toggle
+- `Directory.tsx` — left-panel directory navigator (Home, ancestor chain, sub-folder shortcuts)
+- `ChannelGrid.tsx` — right-panel responsive grid of channel tiles
+- `PlaylistStrip.tsx` — horizontal scrollable video thumbnail row with "NOW" badge and `badThumbs` validation
+- `BottomPanel.tsx` — scrub bar, now-playing info, time display, playback controls
 
 **Panels:**
 - **Top Panel** (always visible when not minimized): Frogo logo, current channel number/icon/name, breadcrumb trail showing the current scope path, optional QR restore button (when QR was dismissed and phone is unpaired), Browse/Close toggle button
@@ -135,7 +145,10 @@ The expanded channel browser uses a flex row (`.hud-content`) with two panels:
   - Thumbnail with aspect-video ratio, channel number badge (top-left), folder icon (top-right, if the channel has sub-channels), "PLAYING" pill (centered, for the active channel)
   - Channel name + icon always visible below the thumbnail (no longer hidden until hover)
 
-**CSS layout:** The HUD wrapper (`.classic-hud`) uses `display: flex; flex-direction: column` with `max-height: min(70vh, 640px)` when expanded (previously used absolute positioning and fixed height). The middle content area uses `flex: 1 1 auto; min-height: 0; overflow: hidden` so the left and right panels can scroll independently.
+**CSS layout:** The HUD wrapper (`.classic-hud`) uses `display: flex; flex-direction: column` with `max-height: min(70vh, 640px)` when expanded. On wide TVs it centers via `margin-inline: auto` with `max-width: 1800px` (fixes the prior asymmetric left-pinned layout). The middle content area uses `flex: 1 1 auto; min-height: 0; overflow: hidden` so the left and right panels can scroll independently.
+
+**Sizing strategy — Tailwind owns dimensions, CSS owns decoration:**
+Responsive sizing lives in the TSX via Tailwind responsive variants (`min-[1600px]:` and `min-[2000px]:`) on each sub-component, so the HUD scales up cleanly on 1600px+ and 2000px+ displays. `globals.css` keeps only decorative styles for `.hud-*` classes — colors, borders, backdrop-filter, custom scrollbars. Fixed widths/heights/padding have been stripped from `.hud-top-panel`, `.hud-bottom-panel`, `.hud-ctrl-btn`, and `.hud-progress-*` so Tailwind utilities take precedence. No `@media` queries for sizing.
 
 **Custom scrollbars:** Both `.hud-left-panel .hud-scroll` and `.hud-right-panel` use thin 6px custom scrollbars (`scrollbar-width: thin`) with translucent white thumbs, replacing chunky native scrollbars.
 
@@ -143,8 +156,8 @@ The expanded channel browser uses a flex row (`.hud-content`) with two panels:
 - Mouse enter on the HUD area transitions from `minimized` to `collapsed`
 - Clicking "Browse" expands to full channel browser; clicking "Close" minimizes
 - Auto-collapse after 15 seconds of idle in expanded state, then minimizes 2 seconds later
-- Scrub bar supports click-and-drag seeking via mousedown/mousemove/mouseup handlers
-- Progress polled from YouTube player every 500ms
+- Scrub bar supports click-and-drag seeking via mousedown/mousemove/mouseup handlers (see `useProgress`)
+- Progress polled from YouTube player every 500ms via the `useProgress` hook
 
 **Thumbnail validation:**
 The playlist strip probes YouTube thumbnails on load. If a thumbnail is 120x90px (YouTube's placeholder for unavailable videos) or fails to load, the video is hidden from the strip via a `badThumbs` Set.

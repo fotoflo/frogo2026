@@ -161,11 +161,13 @@ body {
 .classic-hud {
   position: absolute;
   z-index: 150;
-  left: 5%;
+  left: 0;
+  right: 0;
   bottom: 8%;
   width: 90%;
+  margin-inline: auto;
   min-width: 400px;
-  max-width: 1400px;
+  max-width: 1800px;
   background: rgba(30, 30, 40, 0.92);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -191,14 +193,12 @@ body {
   opacity: 1;
 }
 
-/* Top panel */
+/* Top panel — sizing lives inline with Tailwind */
 .hud-top-panel {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 36px;
-  padding: 0 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
@@ -274,35 +274,27 @@ body {
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* Bottom panel */
+/* Bottom panel — sizing lives inline with Tailwind */
 .hud-bottom-panel {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
-  height: 52px;
   position: relative;
   border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-/* Progress / scrub bar */
+/* Progress / scrub bar — height set inline with Tailwind */
 .hud-progress-bar {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
   background: rgba(255, 255, 255, 0.06);
   border-radius: 2px;
 }
 .hud-progress-bar-interactive {
   cursor: pointer;
-  height: 4px;
   transition: height 0.15s ease;
-}
-.hud-progress-bar-interactive:hover {
-  height: 8px;
 }
 .hud-progress-fill {
   height: 100%;
@@ -313,10 +305,6 @@ body {
 .hud-progress-handle {
   position: absolute;
   top: 50%;
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
-  margin-top: -6px;
   border-radius: 50%;
   background: #7ba046;
   border: 2px solid #fff;
@@ -329,14 +317,11 @@ body {
   opacity: 1;
 }
 
-/* Controller buttons */
+/* Controller buttons — sizing lives inline with Tailwind */
 .hud-ctrl-btn {
-  width: 30px;
-  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
   color: rgba(255, 255, 255, 0.5);
   transition: all 0.12s ease;
   cursor: pointer;

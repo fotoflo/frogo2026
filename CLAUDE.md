@@ -58,6 +58,9 @@ The TV always plays. Each channel's playlist loops on 30-minute boundaries. `src
 - Write architecture docs as you go in `docs/architecture/`
 - Use Supabase client from `@/lib/supabase` — `supabase` for client-side, `createServiceClient()` for server-side
 - API routes in `src/app/api/`
+- **Refactor when necessary** — don't keep patching if the current structure is the problem. If a change uncovers a design issue (wrong file, wrong layer, missing abstraction), fix the structure first.
+- **Never write files longer than 300 lines.** If a file is approaching 300 lines, split it before adding more. If an edit would push a file past 300, refactor first — don't append.
+- **Styling lives in TSX with Tailwind utilities**, not in `globals.css`. Use responsive variants (`md:`, `2xl:`, `min-[1600px]:`) inline. Only put genuinely reusable primitives or things Tailwind can't express in `globals.css`.
 
 ## Environment Variables
 
