@@ -225,10 +225,9 @@ describe("POST /api/mcp — standard methods", () => {
     expect(del.inputSchema.properties.force.type).toBe("boolean");
   });
 
-  it("tools/list add_video schema includes the title + duration_seconds overrides", async () => {
-    // These overrides are the escape hatch when YouTube's consent wall
-    // blocks the server-side metadata scrape — the doc calls this out as a
-    // deliberate load-bearing feature.
+  it("tools/list add_video schema requires only channel_id + url", async () => {
+    // Metadata is fetched from the YouTube Data API; the old title +
+    // duration_seconds overrides (a consent-wall escape hatch) are gone.
     const res = await POST(
       rpcRequest({ jsonrpc: "2.0", id: 4, method: "tools/list" })
     );
@@ -236,9 +235,11 @@ describe("POST /api/mcp — standard methods", () => {
     const addVideo = body.result.tools.find(
       (t: { name: string }) => t.name === "add_video"
     );
-    expect(addVideo.inputSchema.properties.title).toBeDefined();
-    expect(addVideo.inputSchema.properties.duration_seconds).toBeDefined();
-    expect(addVideo.inputSchema.properties.duration_seconds.minimum).toBe(1);
+    expect(addVideo.inputSchema.required).toEqual(["channel_id", "url"]);
+    expect(Object.keys(addVideo.inputSchema.properties).sort()).toEqual([
+      "channel_id",
+      "url",
+    ]);
   });
 });
 

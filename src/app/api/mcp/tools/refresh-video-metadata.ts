@@ -1,12 +1,13 @@
 /**
  * refresh_video_metadata — re-fetch title + duration + thumbnail from YouTube
- * for one video or every video in a channel. Catches title changes, deleted
- * videos, and region blocks. Failures are reported (not auto-deleted) so the
- * caller can review and decide whether to call delete_video.
+ * for one video or every video in a channel. For channel-wide refreshes,
+ * metadata is batched 50-at-a-time via the Data API. Videos that don't come
+ * back from YouTube (deleted/private/region-blocked) land in `failed` — NOT
+ * auto-deleted, so the caller can review and choose to call delete_video.
  */
 import { defineTool } from "../lib/tool";
 import { jsonContent, requireOwnership } from "../lib/shared";
-import { fetchVideoMeta } from "@/lib/youtube-meta";
+import { fetchVideoMetadataBatch } from "@/lib/youtube-api";
 
 interface Args {
   video_id?: string;
@@ -87,70 +88,73 @@ export const refreshVideoMetadata = defineTool<Args>({
       targets = (data ?? []) as VideoRow[];
     }
 
+    const metaMap = await fetchVideoMetadataBatch(
+      targets.map((t) => t.youtube_id)
+    );
+
     const refreshed: RefreshedEntry[] = [];
     const unchanged: UnchangedEntry[] = [];
     const failed: FailedEntry[] = [];
 
     for (const t of targets) {
-      try {
-        const meta = await fetchVideoMeta(t.youtube_id);
-        if (!meta) {
-          failed.push({
-            video_id: t.id,
-            youtube_id: t.youtube_id,
-            old_title: t.title,
-            reason:
-              "YouTube fetch failed (consent wall, deleted, or region-blocked)",
-          });
-          continue;
-        }
-
-        if (
-          meta.title === t.title &&
-          meta.durationSeconds === t.duration_seconds
-        ) {
-          unchanged.push({
-            video_id: t.id,
-            youtube_id: t.youtube_id,
-            title: t.title,
-          });
-          continue;
-        }
-
-        const { error: upErr } = await service
-          .from("videos")
-          .update({
-            title: meta.title,
-            duration_seconds: meta.durationSeconds,
-            thumbnail_url: `https://img.youtube.com/vi/${meta.youtubeId}/mqdefault.jpg`,
-          })
-          .eq("id", t.id);
-        if (upErr) {
-          failed.push({
-            video_id: t.id,
-            youtube_id: t.youtube_id,
-            old_title: t.title,
-            reason: upErr.message,
-          });
-          continue;
-        }
-
-        refreshed.push({
-          video_id: t.id,
-          youtube_id: t.youtube_id,
-          old_title: t.title,
-          new_title: meta.title,
-          old_duration_seconds: t.duration_seconds,
-          new_duration_seconds: meta.durationSeconds,
-        });
-      } catch (err) {
+      const meta = metaMap.get(t.youtube_id);
+      if (!meta) {
         failed.push({
           video_id: t.id,
           youtube_id: t.youtube_id,
           old_title: t.title,
-          reason: err instanceof Error ? err.message : String(err),
+          reason: "YouTube returned no data (deleted, private, or region-blocked)",
         });
+        continue;
       }
+      if (meta.isLive || meta.durationSeconds <= 0) {
+        failed.push({
+          video_id: t.id,
+          youtube_id: t.youtube_id,
+          old_title: t.title,
+          reason: "Live/upcoming stream — no real duration",
+        });
+        continue;
+      }
+
+      if (
+        meta.title === t.title &&
+        meta.durationSeconds === t.duration_seconds
+      ) {
+        unchanged.push({
+          video_id: t.id,
+          youtube_id: t.youtube_id,
+          title: t.title,
+        });
+        continue;
+      }
+
+      const { error: upErr } = await service
+        .from("videos")
+        .update({
+          title: meta.title,
+          duration_seconds: meta.durationSeconds,
+          thumbnail_url: meta.thumbnailUrl,
+        })
+        .eq("id", t.id);
+      if (upErr) {
+        failed.push({
+          video_id: t.id,
+          youtube_id: t.youtube_id,
+          old_title: t.title,
+          reason: upErr.message,
+        });
+        continue;
+      }
+
+      refreshed.push({
+        video_id: t.id,
+        youtube_id: t.youtube_id,
+        old_title: t.title,
+        new_title: meta.title,
+        old_duration_seconds: t.duration_seconds,
+        new_duration_seconds: meta.durationSeconds,
+      });
     }
 
     return jsonContent({

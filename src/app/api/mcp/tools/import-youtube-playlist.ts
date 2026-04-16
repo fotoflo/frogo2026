@@ -1,18 +1,12 @@
 /**
  * import_youtube_playlist — bulk-import a YouTube playlist into a channel.
- * Title + duration are scraped from the playlist page in a single request,
- * so this is dramatically faster than calling `add_video` per item. Videos
- * already in the channel are skipped (deduped by youtube_id). Live streams
- * and items without a known duration are skipped — the broadcast schedule
- * needs a real duration.
+ * Uses the Data API: `playlistItems.list` for ids + batched `videos.list`
+ * (50/call) for durations. Videos already in the channel are skipped;
+ * live/upcoming streams are skipped (broadcast needs a real duration).
  */
 import { defineTool } from "../lib/tool";
 import { jsonContent, requireOwnership } from "../lib/shared";
-import {
-  extractPlaylistId,
-  fetchPlaylistVideos,
-  type ScrapedVideo,
-} from "@/lib/youtube-playlist";
+import { extractPlaylistId, fetchPlaylistVideos } from "@/lib/youtube-api";
 
 interface Args {
   channel_id: string;
@@ -24,7 +18,7 @@ export const importYoutubePlaylist = defineTool<Args>({
   definition: {
     name: "import_youtube_playlist",
     description:
-      "Import an entire YouTube playlist into a channel. Pass the channel id and a playlist URL (e.g. `https://www.youtube.com/playlist?list=PL...`) or bare playlist id. Title + duration are scraped from the playlist page in a single request — no per-video YouTube fetch — so this is dramatically faster than calling `add_video` per item. Videos already in the channel are skipped (deduped by youtube_id). Returns per-item status. Defaults to importing 50 videos; pass `max_videos` to change (cap 200). Date filtering is not supported.",
+      "Import an entire YouTube playlist into a channel. Pass the channel id and a playlist URL (e.g. `https://www.youtube.com/playlist?list=PL...`) or bare playlist id. Videos already in the channel are skipped (deduped by youtube_id). Returns per-item status. Defaults to importing 50 videos; pass `max_videos` to change (cap 200).",
     inputSchema: {
       type: "object",
       required: ["channel_id", "playlist_url"],
@@ -50,17 +44,15 @@ export const importYoutubePlaylist = defineTool<Args>({
     const playlistId = extractPlaylistId(args.playlist_url);
     if (!playlistId) {
       throw new Error(
-        "Could not extract a playlist id from that URL. Expected format: https://www.youtube.com/playlist?list=PL... or a bare playlist id starting with PL/UU/LL/FL/OL/RD."
+        "Could not extract a playlist id from that URL. Expected https://www.youtube.com/playlist?list=PL... or a bare playlist id starting with PL/UU/LL/FL/OL/RD."
       );
     }
 
     const max = Math.min(Math.max(1, args.max_videos ?? 50), 200);
 
-    const scraped = await fetchPlaylistVideos(playlistId, max);
-    if (scraped.length === 0) {
-      throw new Error(
-        "Playlist returned no videos (it may be private or empty)"
-      );
+    const videos = await fetchPlaylistVideos(playlistId, max);
+    if (videos.length === 0) {
+      throw new Error("Playlist returned no videos (it may be private or empty)");
     }
 
     const { data: existing } = await service
@@ -86,21 +78,14 @@ export const importYoutubePlaylist = defineTool<Args>({
       duration_seconds: number;
     }> = [];
     const skipped_duplicates: Array<{ youtube_id: string; title: string }> = [];
-    const failed: Array<{
-      youtube_id: string;
-      title: string;
-      reason: string;
-    }> = [];
+    const failed: Array<{ youtube_id: string; title: string; reason: string }> = [];
 
-    for (const v of scraped as ScrapedVideo[]) {
+    for (const v of videos) {
       if (existingIds.has(v.youtubeId)) {
-        skipped_duplicates.push({
-          youtube_id: v.youtubeId,
-          title: v.title,
-        });
+        skipped_duplicates.push({ youtube_id: v.youtubeId, title: v.title });
         continue;
       }
-      if (v.durationSeconds <= 0) {
+      if (v.isLive || v.durationSeconds <= 0) {
         failed.push({
           youtube_id: v.youtubeId,
           title: v.title,
@@ -116,7 +101,7 @@ export const importYoutubePlaylist = defineTool<Args>({
           youtube_id: v.youtubeId,
           title: v.title,
           description: "",
-          thumbnail_url: `https://img.youtube.com/vi/${v.youtubeId}/mqdefault.jpg`,
+          thumbnail_url: v.thumbnailUrl,
           duration_seconds: v.durationSeconds,
           position: nextPosition,
         })
@@ -124,11 +109,7 @@ export const importYoutubePlaylist = defineTool<Args>({
         .single();
 
       if (error) {
-        failed.push({
-          youtube_id: v.youtubeId,
-          title: v.title,
-          reason: error.message,
-        });
+        failed.push({ youtube_id: v.youtubeId, title: v.title, reason: error.message });
         continue;
       }
 

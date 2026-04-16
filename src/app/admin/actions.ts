@@ -11,7 +11,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin-auth";
-import { fetchVideoMeta } from "@/lib/youtube-meta";
+import { extractYouTubeId, fetchVideoMetadata } from "@/lib/youtube-api";
 import {
   buildChannelPath,
   descendantIds,
@@ -173,8 +173,13 @@ export async function reorderChannels(orderedIds: string[]) {
 export async function addVideoByUrl(channelId: string, url: string) {
   const { supabase } = await requireAdmin();
 
-  const meta = await fetchVideoMeta(url);
+  const youtubeId = extractYouTubeId(url);
+  if (!youtubeId) throw new Error(`Could not extract a YouTube id from: ${url}`);
+  const meta = await fetchVideoMetadata(youtubeId);
   if (!meta) throw new Error("Could not fetch YouTube metadata for that URL");
+  if (meta.isLive || meta.durationSeconds <= 0) {
+    throw new Error("Video is a live/upcoming stream with no duration");
+  }
 
   // Next position = max + 1
   const { data: last } = await supabase
@@ -192,7 +197,7 @@ export async function addVideoByUrl(channelId: string, url: string) {
     youtube_id: meta.youtubeId,
     title: meta.title,
     description: "",
-    thumbnail_url: `https://img.youtube.com/vi/${meta.youtubeId}/mqdefault.jpg`,
+    thumbnail_url: meta.thumbnailUrl,
     duration_seconds: meta.durationSeconds,
     position: nextPosition,
   });
