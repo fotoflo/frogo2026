@@ -5,20 +5,16 @@ import { getOrCreateViewer } from "@/lib/viewer";
 export async function POST(req: NextRequest) {
   try {
     const viewer = await getOrCreateViewer();
-    const { videoId, channelId, event } = await req.json();
+    const { videoId, channelId, event, positionSeconds } = await req.json();
 
-    if (!videoId || !channelId || !event) {
-      return NextResponse.json({ error: "Missing videoId, channelId, or event" }, { status: 400 });
+    if (!videoId || !channelId) {
+      return NextResponse.json({ error: "Missing videoId or channelId" }, { status: 400 });
     }
-
-    if (event !== "seen" && event !== "skip") {
+    if (event && event !== "seen" && event !== "skip") {
       return NextResponse.json({ error: "Event must be 'seen' or 'skip'" }, { status: 400 });
     }
 
     const supabase = createServiceClient();
-    const column = event === "seen" ? "seen_count" : "skip_count";
-
-    // Upsert: insert or increment counter
     const { data: existing } = await supabase
       .from("watch_history")
       .select("id, seen_count, skip_count")
@@ -26,14 +22,15 @@ export async function POST(req: NextRequest) {
       .eq("video_id", videoId)
       .single();
 
+    const now = new Date().toISOString();
+    const pos = typeof positionSeconds === "number" ? Math.max(0, Math.floor(positionSeconds)) : null;
+
     if (existing) {
-      await supabase
-        .from("watch_history")
-        .update({
-          [column]: existing[column] + 1,
-          last_seen_at: new Date().toISOString(),
-        })
-        .eq("id", existing.id);
+      const update: Record<string, unknown> = { last_seen_at: now };
+      if (pos !== null) update.position_seconds = pos;
+      if (event === "seen") update.seen_count = existing.seen_count + 1;
+      if (event === "skip") update.skip_count = existing.skip_count + 1;
+      await supabase.from("watch_history").update(update).eq("id", existing.id);
     } else {
       await supabase.from("watch_history").insert({
         viewer_id: viewer.id,
@@ -41,6 +38,7 @@ export async function POST(req: NextRequest) {
         channel_id: channelId,
         seen_count: event === "seen" ? 1 : 0,
         skip_count: event === "skip" ? 1 : 0,
+        position_seconds: pos ?? 0,
       });
     }
 

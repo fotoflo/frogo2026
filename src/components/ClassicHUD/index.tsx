@@ -8,6 +8,7 @@ import Directory from "./Directory";
 import ChannelGrid from "./ChannelGrid";
 import PlaylistStrip from "./PlaylistStrip";
 import BottomPanel from "./BottomPanel";
+import SearchResults from "./SearchResults";
 
 interface ClassicHUDProps {
   channel: Channel;
@@ -57,9 +58,11 @@ export default function ClassicHUD({
   onVote,
 }: ClassicHUDProps) {
   const [hudState, setHUDState] = useState<HUDState>("minimized");
+  const [searchQuery, setSearchQuery] = useState("");
   const idleTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
   const progress = useProgress(playerRef);
   const localChannelNumber = (siblingIdx < 0 ? 0 : siblingIdx) + 1;
+  const hasQuery = searchQuery.trim().length > 0;
 
   const resetIdleTimer = useCallback(() => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
@@ -79,13 +82,26 @@ export default function ClassicHUD({
   }, [resetIdleTimer]);
 
   function toggleHUD() {
-    setHUDState(hudState === "expanded" ? "minimized" : "expanded");
+    const next = hudState === "expanded" ? "minimized" : "expanded";
+    setHUDState(next);
+    if (next !== "expanded") setSearchQuery("");
+  }
+
+  function handleSearchChange(q: string) {
+    setSearchQuery(q);
+    // Typing implies intent to browse — expand the HUD so results are visible.
+    if (q && hudState !== "expanded") setHUDState("expanded");
   }
 
   function handleMouseEnter() {
     if (hudState === "minimized" || hudState === "collapsed") {
       setHUDState("collapsed");
     }
+  }
+
+  function handleSwitchChannel(id: string) {
+    onSwitchChannel(id);
+    setSearchQuery("");
   }
 
   return (
@@ -100,6 +116,8 @@ export default function ClassicHUD({
         ancestors={ancestors}
         localChannelNumber={localChannelNumber}
         hudState={hudState}
+        searchQuery={searchQuery}
+        onSearchChange={handleSearchChange}
         onNavigateToScope={onNavigateToScope}
         onToggleHUD={toggleHUD}
         showQRButton={showQRButton}
@@ -108,19 +126,31 @@ export default function ClassicHUD({
 
       {hudState === "expanded" && (
         <div className="hud-content">
-          <Directory
-            ancestors={ancestors}
-            siblings={siblings}
-            allChannels={allChannels}
-            onNavigateToScope={onNavigateToScope}
-            onSwitchChannel={onSwitchChannel}
-          />
-          <ChannelGrid
-            channel={channel}
-            siblings={siblings}
-            allChannels={allChannels}
-            onSwitchChannel={onSwitchChannel}
-          />
+          {hasQuery ? (
+            <SearchResults
+              query={searchQuery}
+              siblings={siblings}
+              allChannels={allChannels}
+              activeChannelId={channel.id}
+              onSwitchChannel={handleSwitchChannel}
+            />
+          ) : (
+            <>
+              <Directory
+                ancestors={ancestors}
+                siblings={siblings}
+                allChannels={allChannels}
+                onNavigateToScope={onNavigateToScope}
+                onSwitchChannel={onSwitchChannel}
+              />
+              <ChannelGrid
+                channel={channel}
+                siblings={siblings}
+                allChannels={allChannels}
+                onSwitchChannel={onSwitchChannel}
+              />
+            </>
+          )}
         </div>
       )}
 
