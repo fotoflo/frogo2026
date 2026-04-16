@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Shows TV chrome (HUD / lower-third / QR) on mouse movement, fades it
- * after inactivity. The QR "lingers" for 10s after chrome disappears, so
- * viewers always have a window to pair their phone.
+ * after inactivity. The QR "lingers" for qrLingerMs after chrome disappears,
+ * so viewers always have a window to pair their phone.
  *
  * `showBanner` fires briefly on channel change or initial load — the
  * network-bug logo + big channel card. Driven externally via the
@@ -21,7 +21,7 @@ export interface ChromeVisibility {
 export function useChromeVisibility(
   mouseInactiveMs = 2_500,
   bannerMs = 4_000,
-  qrLingerMs = 10_000
+  qrLingerMs = 30_000
 ): ChromeVisibility {
   const [mouseActive, setMouseActive] = useState(false);
   // Banner is on by default for the first `bannerMs` so viewers see the
@@ -32,58 +32,68 @@ export function useChromeVisibility(
   const mouseTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
   const bannerTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
   const qrTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
-  const prevChromeRef = useRef(false);
+  const mouseActiveRef = useRef(false);
+  const showBannerRef = useRef(true);
+
+  // Reconcile QR visibility whenever either chrome input changes. Cancels a
+  // pending hide if chrome is visible, schedules one if chrome just went
+  // away. Called from event handlers and timeout callbacks — never from an
+  // effect body — so setState stays out of the render path.
+  const reconcileQr = useCallback(() => {
+    const visible = mouseActiveRef.current || showBannerRef.current;
+    if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
+    if (visible) {
+      setQrHidden(false);
+      return;
+    }
+    qrTimeoutRef.current = setTimeout(() => setQrHidden(true), qrLingerMs);
+  }, [qrLingerMs]);
 
   const pingBanner = useCallback(() => {
+    showBannerRef.current = true;
     setShowBanner(true);
+    reconcileQr();
     if (bannerTimeoutRef.current) clearTimeout(bannerTimeoutRef.current);
-    bannerTimeoutRef.current = setTimeout(() => setShowBanner(false), bannerMs);
-  }, [bannerMs]);
+    bannerTimeoutRef.current = setTimeout(() => {
+      showBannerRef.current = false;
+      setShowBanner(false);
+      reconcileQr();
+    }, bannerMs);
+  }, [bannerMs, reconcileQr]);
 
-  // Mouse movement keeps chrome alive
   useEffect(() => {
     function keepAlive() {
+      mouseActiveRef.current = true;
       setMouseActive(true);
+      reconcileQr();
       if (mouseTimeoutRef.current) clearTimeout(mouseTimeoutRef.current);
-      mouseTimeoutRef.current = setTimeout(
-        () => setMouseActive(false),
-        mouseInactiveMs
-      );
+      mouseTimeoutRef.current = setTimeout(() => {
+        mouseActiveRef.current = false;
+        setMouseActive(false);
+        reconcileQr();
+      }, mouseInactiveMs);
     }
     window.addEventListener("mousemove", keepAlive);
     return () => {
       window.removeEventListener("mousemove", keepAlive);
       if (mouseTimeoutRef.current) clearTimeout(mouseTimeoutRef.current);
     };
-  }, [mouseInactiveMs]);
+  }, [mouseInactiveMs, reconcileQr]);
 
-  // Initial banner — auto-hide after bannerMs. No setState-in-effect needed
-  // since showBanner starts true.
+  // Initial banner auto-hides after bannerMs. Timeout callback runs async —
+  // not in the effect body — so setState here is fine.
   useEffect(() => {
-    const t = setTimeout(() => setShowBanner(false), bannerMs);
+    const t = setTimeout(() => {
+      showBannerRef.current = false;
+      setShowBanner(false);
+      reconcileQr();
+    }, bannerMs);
     return () => {
       clearTimeout(t);
       if (bannerTimeoutRef.current) clearTimeout(bannerTimeoutRef.current);
-    };
-  }, [bannerMs]);
-
-  // QR linger: hide qrLingerMs after chrome vanishes; show again the moment
-  // chrome reappears. Single effect handles both transitions.
-  const chromeVisible = mouseActive || showBanner;
-  useEffect(() => {
-    const wasVisible = prevChromeRef.current;
-    prevChromeRef.current = chromeVisible;
-
-    if (chromeVisible) {
-      setQrHidden(false);
-      return;
-    }
-    if (!wasVisible) return;
-    qrTimeoutRef.current = setTimeout(() => setQrHidden(true), qrLingerMs);
-    return () => {
       if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
     };
-  }, [chromeVisible, qrLingerMs]);
+  }, [bannerMs, reconcileQr]);
 
   return { mouseActive, showBanner, showQR: !qrHidden, pingBanner };
 }

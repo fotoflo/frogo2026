@@ -164,6 +164,17 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
     prevViewerCountRef.current = viewerCount;
   }, [viewerCount]);
 
+  // While unpaired, re-show the QR + banner every few minutes so latecomers
+  // always have a window to grab their phone.
+  useEffect(() => {
+    if (paired) return;
+    const id = setInterval(() => {
+      setQrDismissed(false);
+      pingBanner();
+    }, 3 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [paired, pingBanner]);
+
   const dismissViewersMap = useCallback(() => {
     setShowViewersMap(false);
     if (viewersMapTimeoutRef.current) clearTimeout(viewersMapTimeoutRef.current);
