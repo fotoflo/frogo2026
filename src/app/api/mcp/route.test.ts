@@ -179,9 +179,18 @@ describe("POST /api/mcp — standard methods", () => {
       "create_channel",
       "update_channel",
       "delete_channel",
+      "search_channels",
       "add_video",
+      "add_videos_bulk",
+      "import_youtube_playlist",
+      "import_youtube_channel",
+      "list_videos",
       "delete_video",
+      "update_video",
+      "refresh_video_metadata",
       "reorder_videos",
+      "search_videos",
+      "search_youtube",
     ]);
     // Each tool must have a JSON Schema input definition.
     for (const tool of body.result.tools) {
