@@ -1,14 +1,14 @@
 /**
  * update_video — override a video's metadata (title / thumbnail / description)
- * after verifying the caller owns the parent channel. Useful when YouTube's
- * auto-fetched data is junk (generic "Video — YouTube" titles, missing
- * thumbnails) or when the curator wants a custom presentation.
+ * after verifying the caller owns the parent channel. Accepts youtube_id +
+ * channel_id instead of internal UUID.
  */
 import { defineTool } from "../lib/tool";
 import { jsonContent, requireOwnership } from "../lib/shared";
 
 interface Args {
-  video_id: string;
+  youtube_id: string;
+  channel_id: string;
   title?: string;
   thumbnail_url?: string;
   description?: string;
@@ -18,12 +18,13 @@ export const updateVideo = defineTool<Args>({
   definition: {
     name: "update_video",
     description:
-      "Override a video's metadata. Useful when YouTube's auto-fetched title is generic ('Video — YouTube') or you want a custom thumbnail. Any omitted field is left unchanged. Must provide at least one of `title`, `thumbnail_url`, `description`.",
+      "Override a video's metadata by YouTube ID. Useful when YouTube's auto-fetched title is generic or you want a custom thumbnail. Any omitted field is left unchanged. Must provide at least one of `title`, `thumbnail_url`, `description`.",
     inputSchema: {
       type: "object",
-      required: ["video_id"],
+      required: ["youtube_id", "channel_id"],
       properties: {
-        video_id: { type: "string" },
+        youtube_id: { type: "string", description: "YouTube video ID" },
+        channel_id: { type: "string", description: "Channel UUID" },
         title: { type: "string", description: "New title (non-empty)" },
         thumbnail_url: { type: "string", description: "New thumbnail URL" },
         description: {
@@ -35,14 +36,16 @@ export const updateVideo = defineTool<Args>({
     },
   },
   async handler(service, auth, args) {
+    await requireOwnership(service, auth.userId, args.channel_id);
+
     const { data: video, error } = await service
       .from("videos")
-      .select("id, channel_id, title, youtube_id, thumbnail_url, description")
-      .eq("id", args.video_id)
+      .select("id, youtube_id, title, thumbnail_url, description")
+      .eq("channel_id", args.channel_id)
+      .eq("youtube_id", args.youtube_id)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    if (!video) throw new Error("Video not found");
-    await requireOwnership(service, auth.userId, video.channel_id);
+    if (!video) throw new Error(`Video youtube_id=${args.youtube_id} not found in this channel`);
 
     const update: Record<string, unknown> = {};
     if (args.title !== undefined) {
@@ -59,7 +62,7 @@ export const updateVideo = defineTool<Args>({
       update.thumbnail_url = u;
     }
     if (args.description !== undefined) {
-      update.description = args.description; // empty string allowed
+      update.description = args.description;
     }
     if (Object.keys(update).length === 0) {
       throw new Error(
@@ -70,7 +73,7 @@ export const updateVideo = defineTool<Args>({
     const { data: updated, error: upErr } = await service
       .from("videos")
       .update(update)
-      .eq("id", args.video_id)
+      .eq("id", video.id)
       .select(
         "id, channel_id, youtube_id, title, thumbnail_url, description, duration_seconds, position"
       )

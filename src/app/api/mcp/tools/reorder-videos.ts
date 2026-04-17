@@ -1,28 +1,30 @@
 /**
- * reorder_videos — set a channel's playlist order. Videos missing from the
- * caller's list are appended at the end in their current order.
+ * reorder_videos — set a channel's playlist order using YouTube IDs.
+ * Videos missing from the caller's list are appended at the end in their
+ * current order.
  */
 import { defineTool } from "../lib/tool";
 import { requireOwnership, textContent } from "../lib/shared";
 
 interface Args {
   channel_id: string;
-  ordered_video_ids: string[];
+  ordered_youtube_ids: string[];
 }
 
 export const reorderVideos = defineTool<Args>({
   definition: {
     name: "reorder_videos",
     description:
-      "Set the playlist order of a channel. Pass the channel id and an ordered array of video ids. Any videos not in the list are left at the end in their current order.",
+      "Set the playlist order of a channel using YouTube video IDs. Pass the channel id and an ordered array of YouTube IDs. Any videos not in the list are left at the end in their current order.",
     inputSchema: {
       type: "object",
-      required: ["channel_id", "ordered_video_ids"],
+      required: ["channel_id", "ordered_youtube_ids"],
       properties: {
-        channel_id: { type: "string" },
-        ordered_video_ids: {
+        channel_id: { type: "string", description: "Channel UUID" },
+        ordered_youtube_ids: {
           type: "array",
           items: { type: "string" },
+          description: "YouTube video IDs in desired order",
         },
       },
       additionalProperties: false,
@@ -33,24 +35,26 @@ export const reorderVideos = defineTool<Args>({
 
     const { data: existing, error } = await service
       .from("videos")
-      .select("id")
-      .eq("channel_id", args.channel_id);
+      .select("id, youtube_id")
+      .eq("channel_id", args.channel_id)
+      .order("position");
     if (error) throw new Error(error.message);
 
-    const existingIds = new Set((existing ?? []).map((v) => v.id));
+    const ytToId = new Map((existing ?? []).map((v) => [v.youtube_id, v.id]));
     const seen = new Set<string>();
     const finalOrder: string[] = [];
 
-    for (const id of args.ordered_video_ids) {
-      if (!existingIds.has(id)) {
-        throw new Error(`Video ${id} does not belong to this channel`);
+    for (const ytId of args.ordered_youtube_ids) {
+      const dbId = ytToId.get(ytId);
+      if (!dbId) {
+        throw new Error(`YouTube ID ${ytId} does not belong to this channel`);
       }
-      if (!seen.has(id)) {
-        seen.add(id);
-        finalOrder.push(id);
+      if (!seen.has(dbId)) {
+        seen.add(dbId);
+        finalOrder.push(dbId);
       }
     }
-    // Append any videos not mentioned in the list, in their current order.
+    // Append any videos not mentioned in the list.
     for (const v of existing ?? []) {
       if (!seen.has(v.id)) finalOrder.push(v.id);
     }

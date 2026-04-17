@@ -1,17 +1,15 @@
 /**
  * refresh_video_metadata — re-fetch title + duration + thumbnail from YouTube
- * for one video or every video in a channel. For channel-wide refreshes,
- * metadata is batched 50-at-a-time via the Data API. Videos that don't come
- * back from YouTube (deleted/private/region-blocked) land in `failed` — NOT
- * auto-deleted, so the caller can review and choose to call delete_video.
+ * for one video (by youtube_id + channel_id) or every video in a channel.
+ * Videos that don't come back from YouTube land in `failed` — NOT auto-deleted.
  */
 import { defineTool } from "../lib/tool";
 import { jsonContent, requireOwnership } from "../lib/shared";
 import { fetchVideoMetadataBatch } from "@/lib/youtube-api";
 
 interface Args {
-  video_id?: string;
-  channel_id?: string;
+  youtube_id?: string;
+  channel_id: string;
 }
 
 interface VideoRow {
@@ -24,7 +22,6 @@ interface VideoRow {
 }
 
 interface RefreshedEntry {
-  video_id: string;
   youtube_id: string;
   old_title: string;
   new_title: string;
@@ -33,13 +30,11 @@ interface RefreshedEntry {
 }
 
 interface UnchangedEntry {
-  video_id: string;
   youtube_id: string;
   title: string;
 }
 
 interface FailedEntry {
-  video_id: string;
   youtube_id: string;
   old_title: string;
   reason: string;
@@ -49,41 +44,39 @@ export const refreshVideoMetadata = defineTool<Args>({
   definition: {
     name: "refresh_video_metadata",
     description:
-      "Re-fetch title + duration + thumbnail from YouTube for one video (`video_id`) or every video in a channel (`channel_id`). Catches title changes, deleted videos, and region blocks. Videos that fail to refresh are reported in `failed` but NOT deleted automatically — review them and call `delete_video` if needed. Provide exactly one of `video_id` or `channel_id`.",
+      "Re-fetch title + duration + thumbnail from YouTube for one video (`youtube_id` + `channel_id`) or every video in a channel (`channel_id` only). Videos that fail are reported in `failed` but NOT deleted.",
     inputSchema: {
       type: "object",
+      required: ["channel_id"],
       properties: {
-        video_id: { type: "string" },
-        channel_id: { type: "string" },
+        youtube_id: {
+          type: "string",
+          description: "YouTube video ID. Omit to refresh all videos in the channel.",
+        },
+        channel_id: { type: "string", description: "Channel UUID" },
       },
       additionalProperties: false,
     },
   },
   async handler(service, auth, args) {
-    if (!args.video_id && !args.channel_id) {
-      throw new Error("Provide either `video_id` or `channel_id`");
-    }
-    if (args.video_id && args.channel_id) {
-      throw new Error("Provide either `video_id` or `channel_id`, not both");
-    }
+    await requireOwnership(service, auth.userId, args.channel_id);
 
     let targets: VideoRow[];
-    if (args.video_id) {
+    if (args.youtube_id) {
       const { data: v, error } = await service
         .from("videos")
         .select("id, channel_id, youtube_id, title, duration_seconds, made_for_kids")
-        .eq("id", args.video_id)
+        .eq("channel_id", args.channel_id)
+        .eq("youtube_id", args.youtube_id)
         .maybeSingle();
       if (error) throw new Error(error.message);
-      if (!v) throw new Error("Video not found");
-      await requireOwnership(service, auth.userId, v.channel_id);
+      if (!v) throw new Error(`Video youtube_id=${args.youtube_id} not found in this channel`);
       targets = [v as VideoRow];
     } else {
-      await requireOwnership(service, auth.userId, args.channel_id!);
       const { data, error } = await service
         .from("videos")
         .select("id, channel_id, youtube_id, title, duration_seconds, made_for_kids")
-        .eq("channel_id", args.channel_id!)
+        .eq("channel_id", args.channel_id)
         .order("position");
       if (error) throw new Error(error.message);
       targets = (data ?? []) as VideoRow[];
@@ -101,7 +94,6 @@ export const refreshVideoMetadata = defineTool<Args>({
       const meta = metaMap.get(t.youtube_id);
       if (!meta) {
         failed.push({
-          video_id: t.id,
           youtube_id: t.youtube_id,
           old_title: t.title,
           reason: "YouTube returned no data (deleted, private, or region-blocked)",
@@ -110,7 +102,6 @@ export const refreshVideoMetadata = defineTool<Args>({
       }
       if (meta.isLive || meta.durationSeconds <= 0) {
         failed.push({
-          video_id: t.id,
           youtube_id: t.youtube_id,
           old_title: t.title,
           reason: "Live/upcoming stream — no real duration",
@@ -123,12 +114,7 @@ export const refreshVideoMetadata = defineTool<Args>({
         meta.durationSeconds === t.duration_seconds &&
         meta.madeForKids === t.made_for_kids
       ) {
-        unchanged.push({
-          video_id: t.id,
-          youtube_id: t.youtube_id,
-          title: t.title,
-        });
-        // Still bump mfk_checked_at so we know this video was verified.
+        unchanged.push({ youtube_id: t.youtube_id, title: t.title });
         await service
           .from("videos")
           .update({ mfk_checked_at: new Date().toISOString() })
@@ -148,7 +134,6 @@ export const refreshVideoMetadata = defineTool<Args>({
         .eq("id", t.id);
       if (upErr) {
         failed.push({
-          video_id: t.id,
           youtube_id: t.youtube_id,
           old_title: t.title,
           reason: upErr.message,
@@ -157,7 +142,6 @@ export const refreshVideoMetadata = defineTool<Args>({
       }
 
       refreshed.push({
-        video_id: t.id,
         youtube_id: t.youtube_id,
         old_title: t.title,
         new_title: meta.title,
