@@ -23,6 +23,10 @@ export interface Video {
   /** Optional trim end — when set, playback stops here instead of the native end. */
   end_seconds: number | null;
   position: number;
+  /** YouTube COPPA: true = Made For Kids. Always verified via Data API at ingestion. */
+  made_for_kids: boolean;
+  /** When madeForKids was last verified via the YouTube Data API. */
+  mfk_checked_at: string | null;
   created_at: string;
 }
 

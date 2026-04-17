@@ -1,27 +1,26 @@
-# File Size Distribution — 2026-04-16
+# File Size Distribution — 2026-04-17
 
 | Bucket     | Count |
 |------------|-------|
-| <=50       | 67    |
-| 51-150     | 80    |
-| 151-300    | 30    |
+| <=50       | 66    |
+| 51-150     | 82    |
+| 151-300    | 31    |
 | 301-500    | 5     |
 | 501-1000   | 1     |
 | 1001-2000  | 0     |
 | 2000+      | 0     |
 
-- **Total files:** 183
+- **Total files:** 185
 - **Over 500 lines:** 1
 - **Largest:** src/app/admin/channels/edit/[...slug]/ChannelEditor.tsx (507 lines)
 
-## Delta vs previous 2026-04-16 (earlier) snapshot
+## Delta vs previous 2026-04-16 snapshot
 
-- Total files: 173 → 183 (+10)
-- 51-150 bucket: 72 → 80 (+8)
-- 151-300 bucket: 27 → 30 (+3)
-- 501-1000 bucket: 2 → 1 (-1)
-- Over 500 lines: 2 → 1 (-1)
-- Largest file shifted: TVClient.tsx (721) → ChannelEditor.tsx (507) — TVClient.tsx was split (new TVOverlays.tsx + six extracted hooks in src/lib/use*.ts)
-- New hook files land in 51-150; SearchResults.tsx and test files add to 51-150 / 151-300
-- src/lib/youtube-api.ts (277 lines) stays inside the 151-300 bucket — did not push any bucket up
-- No files over the 300-line cap except the 5 legacy 301-500 files and ChannelEditor.tsx (507) — cap violations unchanged in count
+- Total files: 183 → 185 (+2)
+- <=50 bucket: 67 → 66 (-1)
+- 51-150 bucket: 80 → 82 (+2)
+- 151-300 bucket: 30 → 31 (+1)
+- 301-500 bucket: 5 → 5 (unchanged)
+- 501-1000 bucket: 1 → 1 (unchanged)
+- New test files (oauth/register, oauth/token, mcp-auth) likely account for the +2 net new files landing in 51-150 / 151-300
+- ChannelEditor.tsx remains the only over-500 file at 507 lines — cap violations unchanged

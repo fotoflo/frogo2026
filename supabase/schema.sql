@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS videos (
   thumbnail_url TEXT NOT NULL DEFAULT '',
   duration_seconds INTEGER NOT NULL DEFAULT 0,
   position INTEGER NOT NULL DEFAULT 0,
+  made_for_kids BOOLEAN NOT NULL DEFAULT false,
+  mfk_checked_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(channel_id, youtube_id)
 );

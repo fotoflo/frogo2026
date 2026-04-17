@@ -6,13 +6,22 @@ import Image from "next/image";
 import YouTubePlayer from "@/components/YouTubePlayer";
 import PairingDisplay from "@/components/PairingDisplay";
 import { supabase } from "@/lib/supabase";
+import type { Channel, Video } from "@/lib/types";
 
 interface WatchClientProps {
-  channel: any;
-  video: any;
-  playlist: any[];
+  channel: Channel;
+  video: Video;
+  playlist: Video[];
   /** Prebuilt href like "/channel/business/startups" — parent chain is resolved server-side. */
   channelPath: string;
+}
+
+interface YTPlayer {
+  playVideo: () => void;
+  pauseVideo: () => void;
+  getPlayerState: () => number;
+  destroy?: () => void;
+  loadVideoById?: (opts: { videoId: string; startSeconds?: number }) => void;
 }
 
 function formatDuration(seconds: number) {
@@ -30,7 +39,7 @@ export default function WatchClient({
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [paired, setPaired] = useState(false);
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<YTPlayer | null>(null);
   const lastCommandAtRef = useRef<string | null>(null);
 
   // Create pairing session on mount
@@ -96,7 +105,12 @@ export default function WatchClient({
           filter: `id=eq.${sessionId}`,
         },
         (payload) => {
-          const newRow = payload.new as any;
+          const newRow = payload.new as Partial<{
+            paired: boolean;
+            last_command: string;
+            last_command_at: string;
+            playback_state: string;
+          }>;
 
           // Detect pairing
           if (newRow.paired && !paired) {
@@ -128,11 +142,11 @@ export default function WatchClient({
     };
   }, [sessionId, paired, handleCommand]);
 
-  const handleReady = useCallback((player: any) => {
+  const handleReady = useCallback((player: YTPlayer) => {
     playerRef.current = player;
   }, []);
 
-  const currentIdx = playlist.findIndex((v: any) => v.id === video.id);
+  const currentIdx = playlist.findIndex((v) => v.id === video.id);
   const nextVideo = playlist[currentIdx + 1];
   const prevVideo = playlist[currentIdx - 1];
 
@@ -146,7 +160,11 @@ export default function WatchClient({
           e.preventDefault();
           if (playerRef.current) {
             const state = playerRef.current.getPlayerState();
-            state === 1 ? playerRef.current.pauseVideo() : playerRef.current.playVideo();
+            if (state === 1) {
+              playerRef.current.pauseVideo();
+            } else {
+              playerRef.current.playVideo();
+            }
           }
           break;
         case "ArrowRight":
@@ -182,6 +200,7 @@ export default function WatchClient({
         <div>
           <YouTubePlayer
             videoId={video.youtube_id}
+            madeForKids={video.made_for_kids}
             onReady={handleReady}
             onEnded={() => {
               if (nextVideo) {
@@ -240,7 +259,7 @@ export default function WatchClient({
               Playlist ({playlist.length})
             </h3>
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {playlist.map((v: any) => (
+              {playlist.map((v) => (
                 <Link
                   key={v.id}
                   href={`/v/${v.id}`}

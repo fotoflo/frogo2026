@@ -11,6 +11,7 @@ interface Video {
   description?: string;
   youtube_id: string;
   thumbnail_url: string;
+  made_for_kids?: boolean;
 }
 
 interface Channel {
@@ -59,6 +60,7 @@ export default function MobileWatchClient({
           videoId={video.youtube_id}
           controls
           muted={false}
+          madeForKids={video.made_for_kids}
           onReady={handleReady}
           onEnded={() => {
             if (nextVideo) {

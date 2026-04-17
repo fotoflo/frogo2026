@@ -53,6 +53,11 @@ interface YouTubePlayerProps {
   controls?: boolean;
   /** Mute on start (default: true for TV autoplay) */
   muted?: boolean;
+  /**
+   * YouTube COPPA compliance: when true, load via youtube-nocookie.com and
+   * disable analytics/tracking for this player instance.
+   */
+  madeForKids?: boolean;
 }
 
 export default function YouTubePlayer({
@@ -65,6 +70,7 @@ export default function YouTubePlayer({
   onError,
   controls = false,
   muted = true,
+  madeForKids = false,
 }: YouTubePlayerProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -88,6 +94,7 @@ export default function YouTubePlayer({
   const initialStart = useRef(startSeconds);
   const initialControls = useRef(controls);
   const initialMuted = useRef(muted);
+  const initialMadeForKids = useRef(madeForKids);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -109,6 +116,8 @@ export default function YouTubePlayer({
         width: "100%",
         height: "100%",
         videoId: initialVideoId.current,
+        // MFK: use privacy-enhanced domain to prevent tracking for kids content.
+        ...(initialMadeForKids.current && { host: "https://www.youtube-nocookie.com" }),
         playerVars: {
           autoplay: 1,
           mute: initialMuted.current ? 1 : 0,

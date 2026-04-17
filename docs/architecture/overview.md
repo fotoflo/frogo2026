@@ -33,7 +33,9 @@ Curated topic playlists forming a tree via `parent_id`. Each channel has a slug 
 ### Videos
 YouTube videos belonging to channels. Ordered by `position` within a channel.
 - Stores youtube_id, title, description, thumbnail, duration
+- `made_for_kids` (boolean) and `mfk_checked_at` track COPPA status from YouTube's Data API
 - Unavailable videos filtered server-side via YouTube oEmbed check before reaching the client
+- MFK videos are played via `youtube-nocookie.com` embed host for COPPA compliance
 
 ### Pairing Sessions
 Links a TV player to a phone remote.

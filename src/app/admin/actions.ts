@@ -200,6 +200,8 @@ export async function addVideoByUrl(channelId: string, url: string) {
     thumbnail_url: meta.thumbnailUrl,
     duration_seconds: meta.durationSeconds,
     position: nextPosition,
+    made_for_kids: meta.madeForKids,
+    mfk_checked_at: new Date().toISOString(),
   });
 
   if (error) throw new Error(error.message);

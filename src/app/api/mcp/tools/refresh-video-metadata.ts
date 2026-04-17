@@ -20,6 +20,7 @@ interface VideoRow {
   youtube_id: string;
   title: string;
   duration_seconds: number;
+  made_for_kids: boolean | null;
 }
 
 interface RefreshedEntry {
@@ -70,7 +71,7 @@ export const refreshVideoMetadata = defineTool<Args>({
     if (args.video_id) {
       const { data: v, error } = await service
         .from("videos")
-        .select("id, channel_id, youtube_id, title, duration_seconds")
+        .select("id, channel_id, youtube_id, title, duration_seconds, made_for_kids")
         .eq("id", args.video_id)
         .maybeSingle();
       if (error) throw new Error(error.message);
@@ -81,7 +82,7 @@ export const refreshVideoMetadata = defineTool<Args>({
       await requireOwnership(service, auth.userId, args.channel_id!);
       const { data, error } = await service
         .from("videos")
-        .select("id, channel_id, youtube_id, title, duration_seconds")
+        .select("id, channel_id, youtube_id, title, duration_seconds, made_for_kids")
         .eq("channel_id", args.channel_id!)
         .order("position");
       if (error) throw new Error(error.message);
@@ -119,13 +120,19 @@ export const refreshVideoMetadata = defineTool<Args>({
 
       if (
         meta.title === t.title &&
-        meta.durationSeconds === t.duration_seconds
+        meta.durationSeconds === t.duration_seconds &&
+        meta.madeForKids === t.made_for_kids
       ) {
         unchanged.push({
           video_id: t.id,
           youtube_id: t.youtube_id,
           title: t.title,
         });
+        // Still bump mfk_checked_at so we know this video was verified.
+        await service
+          .from("videos")
+          .update({ mfk_checked_at: new Date().toISOString() })
+          .eq("id", t.id);
         continue;
       }
 
@@ -135,6 +142,8 @@ export const refreshVideoMetadata = defineTool<Args>({
           title: meta.title,
           duration_seconds: meta.durationSeconds,
           thumbnail_url: meta.thumbnailUrl,
+          made_for_kids: meta.madeForKids,
+          mfk_checked_at: new Date().toISOString(),
         })
         .eq("id", t.id);
       if (upErr) {

@@ -124,6 +124,8 @@ export const addVideosBulk = defineTool<Args>({
           thumbnail_url: meta.thumbnailUrl,
           duration_seconds: meta.durationSeconds,
           position: nextPosition,
+          made_for_kids: meta.madeForKids,
+          mfk_checked_at: new Date().toISOString(),
         })
         .select("id, title, position")
         .single();

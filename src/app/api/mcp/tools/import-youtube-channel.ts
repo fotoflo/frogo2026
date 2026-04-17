@@ -100,6 +100,8 @@ export const importYoutubeChannel = defineTool<Args>({
           thumbnail_url: v.thumbnailUrl,
           duration_seconds: v.durationSeconds,
           position: nextPosition,
+          made_for_kids: v.madeForKids,
+          mfk_checked_at: new Date().toISOString(),
         })
         .select("id")
         .single();

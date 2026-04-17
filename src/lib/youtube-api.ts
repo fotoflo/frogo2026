@@ -56,6 +56,8 @@ export interface VideoMetadata {
   channelTitle: string;
   publishedAt: string;
   isLive: boolean;
+  /** YouTube ToS: must be checked via Data API `status` part. Never defaults to false. */
+  madeForKids: boolean;
 }
 
 // ─── single + batch video metadata ─────────────────────────────────────────
@@ -91,7 +93,7 @@ export async function fetchVideoMetadataBatch(
 }
 
 async function fetchVideoChunk(ids: string[]): Promise<VideoMetadata[]> {
-  const url = `${API_BASE}/videos?part=snippet,contentDetails,liveStreamingDetails&id=${ids.join(",")}&key=${apiKey()}`;
+  const url = `${API_BASE}/videos?part=snippet,contentDetails,status,liveStreamingDetails&id=${ids.join(",")}&key=${apiKey()}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     const body = await res.text();
@@ -224,6 +226,11 @@ async function orderedMetadata(videoIds: string[]): Promise<VideoMetadata[]> {
 
 function itemToMetadata(item: VideosListItem): VideoMetadata | null {
   if (!item.id || !item.snippet || !item.contentDetails) return null;
+  // madeForKids must come from the API — never default to false.
+  // If the status part is missing or the field is absent, treat the video
+  // as unavailable so the caller fails rather than silently embedding a
+  // potentially COPPA-regulated video without proper treatment.
+  if (typeof item.status?.madeForKids !== "boolean") return null;
   const live = item.snippet.liveBroadcastContent;
   const isLive = live === "live" || live === "upcoming";
   const durationSeconds = isLive
@@ -237,6 +244,7 @@ function itemToMetadata(item: VideosListItem): VideoMetadata | null {
     channelTitle: item.snippet.channelTitle ?? "",
     publishedAt: item.snippet.publishedAt ?? "",
     isLive,
+    madeForKids: item.status.madeForKids,
   };
 }
 
@@ -261,6 +269,7 @@ interface VideosListItem {
     liveBroadcastContent?: "none" | "live" | "upcoming";
   };
   contentDetails?: { duration?: string };
+  status?: { madeForKids?: boolean };
 }
 
 interface VideosListResponse {

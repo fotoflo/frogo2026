@@ -19,7 +19,7 @@ They're split on purpose: the Data API gives reliable structured data from Verce
 
 | Endpoint | Purpose | Quota cost |
 |---|---|---|
-| `videos.list?part=snippet,contentDetails,liveStreamingDetails` | Title, duration (ISO 8601), live flag, thumbnails. Accepts up to 50 IDs per call. | 1 unit / call |
+| `videos.list?part=snippet,contentDetails,liveStreamingDetails,status` | Title, duration (ISO 8601), live flag, thumbnails, and `madeForKids` flag. Accepts up to 50 IDs per call. | 1 unit / call |
 | `playlistItems.list?part=contentDetails` | Walks a playlist to collect video IDs (paginated, 50/page). | 1 unit / page |
 | `channels.list?part=id&forHandle=@handle` | Resolves a `@handle` to a `UC...` channel id. The uploads playlist is always `UU` + the channel id's tail (no second API call needed). | 1 unit / call |
 
@@ -38,8 +38,11 @@ Default free quota is 10k units/day. Each `add_video` is 1 unit; each `add_video
   channelTitle: string;
   publishedAt: string;       // ISO 8601 from snippet.publishedAt
   isLive: boolean;           // snippet.liveBroadcastContent === "live" | "upcoming"
+  madeForKids: boolean;      // status.madeForKids from the API response
 }
 ```
+
+`itemToMetadata` returns `null` if `status.madeForKids` is not a boolean (e.g. the field is absent). Callers that handle batch results treat a `null` item as a failed ID, same as deleted/private videos.
 
 ## Important Patterns
 
@@ -51,6 +54,27 @@ Default free quota is 10k units/day. Each `add_video` is 1 unit; each `add_video
 - **ISO 8601 parsing is strict.** `parseIsoDuration` matches `PT[H]H[M]M[S]S` only. `P0D` (sometimes returned for active live streams) returns 0, which upstream code treats as "skip".
 - **oEmbed is not consent-walled.** `youtube-check.ts` hits `youtube.com/oembed` which returns JSON from all IPs including Vercel's. It only answers "does this video exist" (HTTP 200 vs 404/403), not duration — exactly what the availability filter needs.
 - **No retry loop.** A Data API HTTP error throws immediately. The tools that call into batch-mode wrap failures per-item; single-video tools let the error propagate to the MCP response.
+- **MFK is re-checked on every refresh.** `refresh-video-metadata` re-fetches `status.madeForKids` and writes `mfk_checked_at` even when the flag hasn't changed. This lets operators confirm the field is current without a separate audit pass.
+
+## Made For Kids (COPPA)
+
+YouTube marks some videos `status.madeForKids: true` via its own COPPA-compliance system. Frogo stores this flag and acts on it at the player level.
+
+### Storage
+Two columns are added to the `videos` table:
+- `made_for_kids boolean NOT NULL DEFAULT false` — the COPPA flag from YouTube's API
+- `mfk_checked_at timestamptz` — when the flag was last confirmed (null for pre-MFK rows)
+
+Every write path (add-video, add-videos-bulk, import-youtube-channel, import-youtube-playlist, admin `addVideoByUrl`) stores both columns on insert. `refresh-video-metadata` updates both on every refresh.
+
+### Backfill
+`scripts/backfill-mfk.mjs` handles existing rows that predate MFK tracking. It batches 50 IDs per Data API call, supports `--dry-run` to preview without writing, and accepts a `--channel <slug>` flag to target a single channel. Run once after deploying the migration.
+
+### Player Behavior
+`YouTubePlayer` accepts a `madeForKids` prop. When `true`, the player switches its `host` to `https://www.youtube-nocookie.com` (YouTube's privacy-enhanced embed domain, recommended for COPPA-compliant contexts). All three player surfaces pass the flag through from the database:
+- `TVClient` → `YouTubePlayer`
+- `WatchClient` (`/v/[videoId]`) → `YouTubePlayer`
+- `MobileWatchClient` (`/mobile/v/[videoId]`) → `YouTubePlayer`
 
 ## Environment
 
