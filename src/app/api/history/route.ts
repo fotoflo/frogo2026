@@ -2,6 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase";
 import { getOrCreateViewer } from "@/lib/viewer";
 
+export async function GET(req: NextRequest) {
+  try {
+    const viewer = await getOrCreateViewer();
+    const channelId = req.nextUrl.searchParams.get("channelId");
+    if (!channelId) {
+      return NextResponse.json({ error: "Missing channelId" }, { status: 400 });
+    }
+
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from("watch_history")
+      .select("video_id, seen_count, position_seconds")
+      .eq("viewer_id", viewer.id)
+      .eq("channel_id", channelId)
+      .gt("seen_count", 0);
+
+    const seen: Record<string, { seenCount: number; position: number }> = {};
+    for (const row of data ?? []) {
+      seen[row.video_id] = { seenCount: row.seen_count, position: row.position_seconds };
+    }
+    return NextResponse.json({ seen });
+  } catch {
+    return NextResponse.json({ error: "Failed to fetch history" }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const viewer = await getOrCreateViewer();

@@ -6,12 +6,14 @@ import type { Video } from "./types";
 interface Props {
   videos: Video[];
   currentVideoIndex: number;
+  seenVideoIds?: Set<string>;
   onJumpToVideo: (index: number) => void;
 }
 
 export default function PlaylistStrip({
   videos,
   currentVideoIndex,
+  seenVideoIds,
   onJumpToVideo,
 }: Props) {
   const [badThumbs, setBadThumbs] = useState<Set<string>>(new Set());
@@ -33,6 +35,7 @@ export default function PlaylistStrip({
         {videos.map((v, i) => {
           if (badThumbs.has(v.youtube_id)) return null;
           const isActive = i === currentVideoIndex;
+          const isSeen = seenVideoIds?.has(v.id) ?? false;
           const thumbUrl =
             v.thumbnail_url ||
             `https://img.youtube.com/vi/${v.youtube_id}/mqdefault.jpg`;
@@ -55,7 +58,7 @@ export default function PlaylistStrip({
                 onLoad={(e) => handleThumbLoad(v.youtube_id, e)}
                 onError={() => handleThumbError(v.youtube_id)}
               />
-              {isActive && (
+              {isActive ? (
                 <>
                   <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
                   <div
@@ -65,7 +68,13 @@ export default function PlaylistStrip({
                     NOW
                   </div>
                 </>
-              )}
+              ) : isSeen ? (
+                <div className="absolute bottom-0.5 right-0.5 min-[1600px]:bottom-1 min-[1600px]:right-1" aria-label="Watched">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-green-400/80 min-[1600px]:w-3.5 min-[1600px]:h-3.5 drop-shadow-sm" aria-hidden="true">
+                    <path d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zm3.1 4.7L7.1 9.8 4.9 7.6l-.8.8 3 3 4.8-4.8-.8-.9z" />
+                  </svg>
+                </div>
+              ) : null}
             </button>
           );
         })}

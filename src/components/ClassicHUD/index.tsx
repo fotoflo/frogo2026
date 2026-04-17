@@ -32,6 +32,7 @@ interface ClassicHUDProps {
   onTogglePlay: () => void;
   isPlaying?: boolean;
   onJumpToVideo: (index: number) => void;
+  seenVideoIds?: Set<string>;
   showQRButton?: boolean;
   onShowQR?: () => void;
   onVote?: (upvote: boolean) => void;
@@ -55,6 +56,7 @@ export default function ClassicHUD({
   onTogglePlay,
   isPlaying,
   onJumpToVideo,
+  seenVideoIds,
   showQRButton,
   onShowQR,
   onVote,
@@ -160,6 +162,7 @@ export default function ClassicHUD({
         <PlaylistStrip
           videos={channel.videos}
           currentVideoIndex={currentVideoIndex}
+          seenVideoIds={seenVideoIds}
           onJumpToVideo={onJumpToVideo}
         />
       )}

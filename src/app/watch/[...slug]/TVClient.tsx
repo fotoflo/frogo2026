@@ -13,6 +13,7 @@ import { useTVKeyboard } from "@/lib/useTVKeyboard";
 import { useAutoplay } from "@/lib/useAutoplay";
 import { useChannelNav } from "@/lib/useChannelNav";
 import { readInitialResume, useWatchProgress } from "@/lib/useWatchProgress";
+import { useWatchHistory } from "@/lib/useWatchHistory";
 import TVOverlays from "./TVOverlays";
 
 interface Video {
@@ -24,6 +25,7 @@ interface Video {
   start_seconds?: number | null;
   end_seconds?: number | null;
   thumbnail_url?: string;
+  made_for_kids?: boolean;
 }
 
 interface ChannelData {
@@ -62,6 +64,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
   });
   const { channel, channelIdx, siblings, ancestors, siblingIdx } = nav;
   const videos = channel.videos;
+  const { seenIds, markSeen } = useWatchHistory(channel.id);
 
   // Resume on mount / channel change: URL > localStorage > first video
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
@@ -70,7 +73,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
   const activeVideo = videos[currentVideoIndex] || videos[0];
 
   useEffect(() => {
-    const resume = readInitialResume(channel.id);
+    const resume = readInitialResume(channel.id, videos);
     let idx = 0;
     if (resume.videoId) {
       const match = videos.findIndex(
@@ -78,9 +81,11 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
       );
       if (match >= 0) idx = match;
     }
-    setCurrentVideoIndex(idx);
-    setStartSeconds(resume.videoId ? resume.positionSeconds : 0);
-    setPlaybackReady(true);
+    queueMicrotask(() => {
+      setCurrentVideoIndex(idx);
+      setStartSeconds(resume.videoId ? resume.positionSeconds : 0);
+      setPlaybackReady(true);
+    });
   }, [channel.id, videos]);
 
   const { viewers, myLocation, viewerCount } = useViewerPresence(channel.slug);
@@ -100,6 +105,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
   const { commitSeen, commitSkip } = useWatchProgress({
     channelId: channel.id,
     videoId: activeVideo?.id ?? null,
+    videoTitle: activeVideo?.title ?? "",
     basePath,
     playerRef,
   });
@@ -113,7 +119,10 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
     [videos.length]
   );
 
-  const handleEnded = useCallback(() => advanceBy(1, commitSeen), [advanceBy, commitSeen]);
+  const handleEnded = useCallback(() => {
+    if (activeVideo) markSeen(activeVideo.id);
+    advanceBy(1, commitSeen);
+  }, [advanceBy, commitSeen, activeVideo, markSeen]);
   const handleNextVideo = useCallback(() => advanceBy(1, commitSkip), [advanceBy, commitSkip]);
   const handlePrevVideo = useCallback(() => advanceBy(-1, commitSkip), [advanceBy, commitSkip]);
 
@@ -151,6 +160,16 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
     onNextChannel: nav.nextChannel,
     onTogglePlay: handleScreenClick,
     onEscape: () => setShowRemote(false),
+    onToggleMute: () => {
+      const p = playerRef.current;
+      if (!p) return;
+      if (p.isMuted?.()) {
+        p.unMute?.();
+        p.setVolume?.(100);
+      } else {
+        p.mute?.();
+      }
+    },
     onChannelNumberInput: (buf) => {
       if (buf) pingBanner();
     },
@@ -158,7 +177,9 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
 
   useEffect(() => {
     if (viewerCount >= 2 && viewerCount > prevViewerCountRef.current) {
-      setShowViewersMap(true);
+      queueMicrotask(() => {
+        setShowViewersMap(true);
+      });
       if (viewersMapTimeoutRef.current) clearTimeout(viewersMapTimeoutRef.current);
       viewersMapTimeoutRef.current = setTimeout(() => setShowViewersMap(false), 15000);
     }
@@ -189,6 +210,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
             videoId={activeVideo.youtube_id}
             startSeconds={(activeVideo.start_seconds ?? 0) + startSeconds}
             endSeconds={activeVideo.end_seconds}
+            madeForKids={activeVideo.made_for_kids}
             onReady={handleReady}
             onStateChange={(state) => setIsPlaying(state === 1)}
             onEnded={handleEnded}
@@ -207,6 +229,9 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
         onDismissQR={() => setQrDismissed(true)}
         channelNumber={channelNumber}
         showBanner={showBanner}
+        bannerChannelName={channel.name}
+        bannerChannelIcon={channel.icon}
+        bannerVideoTitle={activeVideo?.title}
         showViewersMap={showViewersMap}
         viewers={viewers}
         myLocation={myLocation}
@@ -244,6 +269,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
               onTogglePlay={handleScreenClick}
               isPlaying={isPlaying}
               onJumpToVideo={handleJumpToVideo}
+              seenVideoIds={seenIds}
               showQRButton={!paired && !!pairingCode && qrDismissed}
               onShowQR={() => setQrDismissed(false)}
             />

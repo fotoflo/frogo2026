@@ -8,6 +8,7 @@ interface Options {
   onNextChannel: () => void;
   onTogglePlay: () => void;
   onEscape?: () => void;
+  onToggleMute?: () => void;
   /** Called whenever the user starts typing a multi-digit channel number. */
   onChannelNumberInput?: (buffer: string) => void;
 }
@@ -68,6 +69,9 @@ export function useTVKeyboard(opts: Options) {
           break;
         case "f":
           document.documentElement.requestFullscreen?.();
+          break;
+        case "m":
+          optsRef.current.onToggleMute?.();
           break;
         case "Escape":
           optsRef.current.onEscape?.();

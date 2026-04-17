@@ -20,6 +20,16 @@ type YTPlayer = {
 
 const YT_PLAYING = 1;
 
+function toVideoSlug(title: string, id: string): string {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+  const hash = id.slice(0, 4);
+  return `${slug}-${hash}`;
+}
+
 const LS_PREFIX = "frogo:channel:";
 const LS_LAST = "frogo:lastChannel";
 const LIVE_TICK_MS = 5_000;
@@ -34,17 +44,21 @@ export interface ResumeState {
  * Read initial resume state for a channel. URL wins over localStorage.
  * Safe to call during SSR — returns a null/zero state server-side.
  */
-export function readInitialResume(channelId: string): ResumeState {
+export function readInitialResume(channelId: string, videos?: Array<{ id: string; title: string }>): ResumeState {
   if (typeof window === "undefined") return { videoId: null, positionSeconds: 0 };
 
   const params = new URLSearchParams(window.location.search);
-  const urlVideo = params.get("v");
+  const urlSlug = params.get("v");
   const urlT = params.get("t");
-  if (urlVideo) {
-    return {
-      videoId: urlVideo,
-      positionSeconds: urlT ? Math.max(0, parseInt(urlT, 10) || 0) : 0,
-    };
+  if (urlSlug && videos) {
+    const hash = urlSlug.slice(-4);
+    const match = videos.find((v) => v.id.startsWith(hash));
+    if (match) {
+      return {
+        videoId: match.id,
+        positionSeconds: urlT ? Math.max(0, parseInt(urlT, 10) || 0) : 0,
+      };
+    }
   }
 
   try {
@@ -73,9 +87,10 @@ function writeLocal(channelId: string, videoId: string, position: number) {
   }
 }
 
-function writeUrl(videoId: string, position: number, basePath: string) {
+function writeUrl(videoId: string, title: string, position: number, basePath: string) {
+  const slug = toVideoSlug(title, videoId);
   const params = new URLSearchParams(window.location.search);
-  params.set("v", videoId);
+  params.set("v", slug);
   params.set("t", String(Math.floor(position)));
   const qs = params.toString();
   window.history.replaceState(null, "", `${basePath}?${qs}`);
@@ -97,12 +112,13 @@ function postHistory(body: {
 interface Options {
   channelId: string;
   videoId: string | null;
+  videoTitle: string;
   /** Base pathname (without query) to keep on the URL, e.g. /watch/foo/bar. */
   basePath: string;
   playerRef: React.RefObject<YTPlayer | null>;
 }
 
-export function useWatchProgress({ channelId, videoId, basePath, playerRef }: Options) {
+export function useWatchProgress({ channelId, videoId, videoTitle, basePath, playerRef }: Options) {
   const lastDbWriteRef = useRef(0);
 
   const getPosition = useCallback((): number => {
@@ -125,11 +141,11 @@ export function useWatchProgress({ channelId, videoId, basePath, playerRef }: Op
       if (!p?.getPlayerState || p.getPlayerState() !== YT_PLAYING) return;
       const pos = getPosition();
       writeLocal(channelId, videoId, pos);
-      writeUrl(videoId, pos, basePath);
+      writeUrl(videoId, videoTitle, pos, basePath);
     };
     const id = setInterval(tick, LIVE_TICK_MS);
     return () => clearInterval(id);
-  }, [channelId, videoId, basePath, getPosition, playerRef]);
+  }, [channelId, videoId, videoTitle, basePath, getPosition, playerRef]);
 
   // 5min tick: DB write
   useEffect(() => {

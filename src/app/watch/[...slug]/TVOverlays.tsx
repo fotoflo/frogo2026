@@ -20,6 +20,9 @@ interface Props {
   onDismissQR: () => void;
   channelNumber: string;
   showBanner: boolean;
+  bannerChannelName?: string;
+  bannerChannelIcon?: string;
+  bannerVideoTitle?: string;
   showViewersMap: boolean;
   viewers: ViewerPin[];
   myLocation: ViewerPin | null;
@@ -41,6 +44,9 @@ export default function TVOverlays({
   onDismissQR,
   channelNumber,
   showBanner,
+  bannerChannelName,
+  bannerChannelIcon,
+  bannerVideoTitle,
   showViewersMap,
   viewers,
   myLocation,
@@ -95,9 +101,21 @@ export default function TVOverlays({
       )}
 
       {showBanner && (
-        <div className="absolute top-4 left-4 z-40 pointer-events-none">
+        <div className="absolute top-4 left-4 z-40 pointer-events-none flex items-start gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/images/frogo/logo.png" alt="" aria-hidden="true" className="h-8 opacity-60" />
+          {bannerChannelName && (
+            <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5 min-[1600px]:px-4 min-[1600px]:py-2">
+              <div className="text-white/90 text-sm font-medium min-[1600px]:text-base">
+                {bannerChannelIcon} {bannerChannelName}
+              </div>
+              {bannerVideoTitle && (
+                <div className="text-white/50 text-xs truncate max-w-[300px] min-[1600px]:text-sm min-[1600px]:max-w-[400px]">
+                  {bannerVideoTitle}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

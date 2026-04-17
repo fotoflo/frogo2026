@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { QRCode } from "react-qrcode-logo";
+
+function subscribe() {
+  return () => {};
+}
 
 interface PairingDisplayProps {
   sessionId: string;
@@ -9,11 +13,11 @@ interface PairingDisplayProps {
 }
 
 export default function PairingDisplay({ sessionId, code }: PairingDisplayProps) {
-  const [origin, setOrigin] = useState("");
-
-  useEffect(() => {
-    setOrigin(window.location.origin);
-  }, []);
+  const origin = useSyncExternalStore(
+    subscribe,
+    () => window.location.origin,
+    () => ""
+  );
 
   const pairUrl = origin ? `${origin}/pair?code=${code}` : "";
 
