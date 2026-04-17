@@ -50,6 +50,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
   const [showRemote, setShowRemote] = useState(false);
   const [hudHovered, setHudHovered] = useState(false);
   const [qrDismissed, setQrDismissed] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const nav = useChannelNav({
     channels,
@@ -189,6 +190,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
             startSeconds={(activeVideo.start_seconds ?? 0) + startSeconds}
             endSeconds={activeVideo.end_seconds}
             onReady={handleReady}
+            onStateChange={(state) => setIsPlaying(state === 1)}
             onEnded={handleEnded}
             onError={handleError}
           />
@@ -240,6 +242,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
               onPrevVideo={handlePrevVideo}
               onVote={(upvote: boolean) => activeVideo && vote(activeVideo.id, upvote)}
               onTogglePlay={handleScreenClick}
+              isPlaying={isPlaying}
               onJumpToVideo={handleJumpToVideo}
               showQRButton={!paired && !!pairingCode && qrDismissed}
               onShowQR={() => setQrDismissed(false)}

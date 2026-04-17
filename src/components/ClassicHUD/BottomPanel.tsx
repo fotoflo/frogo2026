@@ -11,6 +11,7 @@ interface Props {
   onPrevVideo: () => void;
   onNextVideo: () => void;
   onTogglePlay: () => void;
+  isPlaying?: boolean;
   onPrevChannel: () => void;
   onNextChannel: () => void;
   onVote?: (upvote: boolean) => void;
@@ -35,6 +36,7 @@ export default function BottomPanel({
   onPrevVideo,
   onNextVideo,
   onTogglePlay,
+  isPlaying,
   onPrevChannel,
   onNextChannel,
   onVote,
@@ -116,11 +118,11 @@ export default function BottomPanel({
         <button
           onClick={onTogglePlay}
           className={`${CTRL_BTN} hud-ctrl-btn-primary`}
-          title="Play/Pause"
-          aria-label="Play or pause"
+          title={isPlaying ? "Pause" : "Play"}
+          aria-label={isPlaying ? "Pause" : "Play"}
         >
           <svg viewBox="0 0 24 24" fill="currentColor" className={CTRL_SVG_LG} aria-hidden="true">
-            <path d="M8 5v14l11-7z" />
+            {isPlaying ? <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /> : <path d="M8 5v14l11-7z" />}
           </svg>
         </button>
         <button onClick={onNextVideo} className={CTRL_BTN} title="Next Video" aria-label="Next video">

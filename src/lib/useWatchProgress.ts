@@ -18,6 +18,8 @@ type YTPlayer = {
   getPlayerState?: () => number;
 };
 
+const YT_PLAYING = 1;
+
 const LS_PREFIX = "frogo:channel:";
 const LS_LAST = "frogo:lastChannel";
 const LIVE_TICK_MS = 5_000;
@@ -113,18 +115,21 @@ export function useWatchProgress({ channelId, videoId, basePath, playerRef }: Op
     }
   }, [playerRef]);
 
-  // 5s tick: URL + localStorage (no network)
+  // 5s tick: URL + localStorage (no network).
+  // Only writes when the player is actually playing — avoids overwriting
+  // resume data before the player is ready on mount.
   useEffect(() => {
     if (!videoId) return;
     const tick = () => {
+      const p = playerRef.current;
+      if (!p?.getPlayerState || p.getPlayerState() !== YT_PLAYING) return;
       const pos = getPosition();
       writeLocal(channelId, videoId, pos);
       writeUrl(videoId, pos, basePath);
     };
-    tick(); // immediate on video change
     const id = setInterval(tick, LIVE_TICK_MS);
     return () => clearInterval(id);
-  }, [channelId, videoId, basePath, getPosition]);
+  }, [channelId, videoId, basePath, getPosition, playerRef]);
 
   // 5min tick: DB write
   useEffect(() => {
