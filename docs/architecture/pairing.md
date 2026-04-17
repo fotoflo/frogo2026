@@ -89,7 +89,17 @@ The TV screen needs a URL that the phone can reach. `MiniQR` resolves the host i
 2. `/api/network-ip` — LAN IP (works on same WiFi)
 3. `window.location.host` — localhost fallback
 
+`MiniQR` uses `useSyncExternalStore` (not `useEffect`) to read `window.location.origin` and `.port`, avoiding React 19 setState-in-effect lint errors.
+
 The QR code encodes `https://<host>/pair?code=XXXX`. Scanning it opens `/pair` with the code pre-filled, triggering auto-pair on mount.
+
+### QR Visibility Behaviour
+
+- QR card is **112 px** wide with rounded dots style; label reads "pair remote".
+- Visibility is controlled by `showQR` from `useChromeVisibility` (see [TV Mode](tv-mode.md)).
+- The QR lingers **30 s** after chrome hides, giving viewers time to scan even after they stop moving the mouse.
+- The QR re-appears automatically every ~3 min while the TV remains unpaired.
+- Users can dismiss the QR by clicking it; a restore button appears in the HUD top bar when dismissed.
 
 ## Phone Remote UI (`/pair`)
 

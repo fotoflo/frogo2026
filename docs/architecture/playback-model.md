@@ -2,35 +2,41 @@
 
 **FrogoTV is DVR for YouTube.**
 
-Channels loop curated YouTube playlists on a broadcast schedule. Every channel has a canonical live timeline that's the same for everyone. The DVR model is battle-tested — we follow it as closely as possible rather than reinventing the wheel. When in doubt, ask "what would TiVo do?"
+Channels loop curated YouTube playlists. The current model is **resume-from-last** — when a viewer opens a channel, playback picks up where they left off rather than jumping to a live broadcast position.
 
-## Core Rules
+## Resume Priority (Three-Tier)
 
-### The broadcast is always live
+When `TVClient` initialises a channel, `readInitialResume(channelId, videos)` checks three sources in order:
 
-Every channel has a live edge — the point in the playlist that corresponds to right now on the wall clock. When a viewer tunes into a channel, they always land on the live edge.
+1. **URL `?v=slug&t=seconds`** — wins over everything. Allows bookmarking and tab-reload resumption. The `v` param is a human-readable video slug (`video-title-a1b2`) not a raw UUID; the last 4 chars of the slug are matched against the video's UUID prefix to resolve the full ID.
+2. **`localStorage` `frogo:channel:<channelId>`** — per-channel last position, updated every 5 s while playing.
+3. **First video, position 0** — fallback when no prior state exists.
 
-### Pause is a personal DVR
+### Slug Format
 
-Viewers can pause. The broadcast keeps going without them. While paused, the viewer falls behind the live edge. When they unpause, playback resumes from where they left off — they're now on tape delay.
+`toVideoSlug(title, id)` builds a URL-safe slug: title normalised to lowercase alphanumeric with hyphens, truncated to 40 chars, then appended with the first 4 chars of the video UUID (e.g. `building-a-compiler-a1b2`). This keeps URLs readable while remaining unique within a channel.
 
-When the current video ends, the viewer snaps back to whatever is live on the channel. Pause never carries over to the next video. This keeps everyone roughly in sync and prevents viewers from drifting into a completely different version of the channel.
+## Live Write Rules (`useWatchProgress`)
 
-### Scrubbing is rewind-only
+`src/lib/useWatchProgress.ts` drives all position persistence.
 
-There is a scrub bar. Viewers can scrub backward within the current video to replay a moment or catch something they missed. But the scrub bar cannot advance past the live edge — you can't watch something that hasn't aired yet. This mirrors how DVR works: you can rewind the tape, but you can't fast-forward past real time.
+- **5 s tick** — reads `player.getCurrentTime()` and `player.getPlayerState()`. Writes to URL and localStorage **only when the player state is `1` (PLAYING)**. This guard prevents resume data being overwritten on mount before the video has actually started.
+- **5 min tick** — POSTs `{ videoId, channelId, positionSeconds }` to `POST /api/history` for server-side persistence (see [Watch History](watch-history.md)).
+- **`commitSeen()`** — called when a video ends naturally; POSTs `event: "seen"` + final position.
+- **`commitSkip()`** — called on manual prev/next navigation; POSTs `event: "skip"` + current position.
 
-### Channel changes always go to live
+## Channel Switching Behaviour
 
-Switching channels drops any DVR state. The new channel starts at its live edge. This is true whether the viewer changes the channel themselves or another paired remote does it.
+Switching channels resets the resume lookup to the new channel's URL/localStorage/first-video chain. The URL is updated via `window.history.replaceState` (no page navigation).
 
 ## Remote Controls
 
 The phone remote has exactly these actions:
 
-1. **Channel up / down** — tune to the next or previous channel (lands on live)
-2. **Pause / resume** — personal DVR pause
-3. **Scrub bar** — rewind within the current video, capped at the live edge
-4. **Navigate to specific channels** — channel number commands
+1. **Channel up / down** — tune to the next or previous channel (resumes from last position)
+2. **Pause / resume** — personal playback pause
+3. **Navigate to specific channels** — channel number or slug commands
 
-No fast-forward past live. No playlist browser on the remote. No video picker.
+## Prior Broadcast Model (Archived)
+
+The original design used a deterministic half-hour broadcast schedule (`src/lib/schedule.ts` → `whatsOnNow()`). Every viewer tuned to the same channel saw the same video at the same offset, like real TV. That model was replaced by resume-from-last in favour of a more personalised viewing experience. The `schedule.ts` file is retained for possible future re-use.

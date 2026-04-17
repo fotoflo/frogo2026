@@ -4,14 +4,19 @@ The TV mode is the core experience of Frogo2026. The app behaves like a real tel
 
 ## Key Files
 
-- `src/app/watch/[slug]/page.tsx` — server component: fetches all channels + filters videos
-- `src/app/watch/[slug]/TVClient.tsx` — client component: all TV playback logic
+- `src/app/watch/[...slug]/page.tsx` — server component: fetches all channels + filters videos
+- `src/app/watch/[...slug]/TVClient.tsx` — client component: all TV playback logic + orchestration
+- `src/app/watch/[...slug]/TVOverlays.tsx` — non-interactive TV overlays (QR, mute hint, banner, paired dot)
 - `src/components/YouTubePlayer.tsx` — YouTube IFrame API wrapper
 - `src/components/OnScreenRemote.tsx` — mini and expanded on-screen remote
 - `src/components/ClassicHUD/` — classic frogo.tv HUD overlay (channel browser + controls), split into sub-components
-- `src/components/MiniQR.tsx` — QR code overlay
-- `src/lib/schedule.ts` — broadcast schedule calculation (`whatsOnNow`)
+- `src/components/MiniQR.tsx` — QR code card (useSyncExternalStore for origin, 112px size)
+- `src/lib/schedule.ts` — broadcast schedule calculation (`whatsOnNow`, retained for future use)
 - `src/lib/settings.ts` — feature flags (`FEATURES.CLASSIC_HUD`, etc.)
+- `src/lib/useWatchProgress.ts` — URL slug + localStorage + DB position persistence
+- `src/lib/useWatchHistory.ts` — fetches seen video IDs per channel; `markSeen` for optimistic updates
+- `src/lib/useChromeVisibility.ts` — event-driven QR reconciliation + mouse/banner chrome state
+- `src/lib/useTVKeyboard.ts` — keyboard shortcuts including mute toggle
 - `src/app/watch/[slug]/opengraph-image.tsx` — dynamic OG image per channel
 - `src/lib/youtube-check.ts` — oEmbed availability filter
 - `scripts/dev.mjs` — dev server with ngrok tunnel
@@ -22,16 +27,19 @@ The TV mode is the core experience of Frogo2026. The app behaves like a real tel
 / (page.tsx)
   └─ redirect to /watch/<first-channel-slug>
 
-/watch/[slug] (page.tsx — server component)
+/watch/[...slug] (page.tsx — server component)
   ├─ Fetch ALL channels + their videos from Supabase in parallel
   ├─ Filter unavailable videos per channel via oEmbed (youtube-check.ts)
   └─ Render TVClient with channels[] + initialChannelIndex
 
-/watch/[slug] (TVClient.tsx — client component)
+/watch/[...slug] (TVClient.tsx — client component)
   ├─ Client-side channel switching (no navigation/page reloads)
-  ├─ Calculate current video + startSeconds from schedule
+  ├─ readInitialResume() — URL ?v= > localStorage > first video fallback
+  ├─ useWatchProgress — 5s URL+localStorage sync, 5min DB sync (PLAYING-gated)
+  ├─ useWatchHistory — fetches seen video IDs for the current channel
   ├─ Render fullscreen YouTubePlayer
-  ├─ Render on-screen chrome (MiniQR, OnScreenRemote, banners)
+  ├─ Render TVOverlays (QR, mute hint, banner with channel+video info, paired dot)
+  ├─ Render ClassicHUD (channel browser, playlist strip, playback controls)
   └─ Manage pairing session + Supabase Realtime subscription
 ```
 
@@ -53,19 +61,15 @@ TVClient: channelIdx state
 
 When the channel changes, `TVClient` detects the new `channel.id` (via a ref comparison), recalculates the broadcast schedule for the new channel's playlist, and shows the channel banner for 4 seconds.
 
-## Broadcast Schedule
+## Playback Start Position
 
-Every channel broadcasts on a deterministic schedule anchored to half-hour boundaries. This means any viewer tuning in at the same time sees the same video at the same position — like real TV.
+When a viewer opens or switches to a channel, `TVClient` calls `readInitialResume(channelId, videos)` to determine which video to play and at what offset. Three sources are checked in priority order:
 
-**Logic (`src/lib/schedule.ts` → `whatsOnNow(durations)`):**
+1. **URL `?v=slug&t=seconds`** — highest priority; populated every 5 s by `useWatchProgress`. The slug format is `title-words-XXXX` where `XXXX` is the first 4 chars of the video UUID. The slug is resolved back to a full video ID by matching those 4 chars.
+2. **`localStorage` `frogo:channel:<channelId>`** — per-channel last-watched position, written every 5 s while the player is in PLAYING state.
+3. **First video, position 0** — cold-start fallback.
 
-1. Take the current UTC timestamp
-2. Find the most recent half-hour boundary (e.g., 14:00, 14:30, 15:00)
-3. Calculate elapsed seconds since that boundary
-4. Walk through the playlist, summing durations, looping as needed
-5. Return `{ index, startSeconds }`
-
-This requires no server coordination — every client independently computes the same result from the wall clock.
+The prior broadcast schedule (`src/lib/schedule.ts` → `whatsOnNow`) is retained in the codebase for potential future use but is no longer called by `TVClient`.
 
 ## Autoplay and Click-to-Start
 
@@ -85,7 +89,10 @@ On screen click: if state is `5` or `-1`, call `player.playVideo()`. If already 
 | 0–9 | Buffer digits, switch after 1s of no input |
 | Space | Toggle play/pause |
 | F | Request fullscreen |
+| M | Toggle mute/unmute |
 | Escape | Close on-screen remote |
+
+The `m` key calls the optional `onToggleMute` callback wired from `TVClient`. Keys pressed while an `<input>` or `<textarea>` is focused are ignored.
 
 ## Fullscreen Player (YouTubePlayer)
 
@@ -124,10 +131,10 @@ A collapsible 3-panel overlay inspired by the original frogo.tv interface. It ha
 - `BottomPanel.tsx` — scrub bar, now-playing info, time display, playback controls
 
 **Panels:**
-- **Top Panel** (always visible when not minimized): Frogo logo, current channel number/icon/name, breadcrumb trail showing the current scope path, optional QR restore button (when QR was dismissed and phone is unpaired), Browse/Close toggle button
+- **Top Panel** (always visible when not minimized): Frogo logo, current channel number/icon/name, breadcrumb trail showing the current scope path, **always-visible search input** (was previously expanded-only), optional QR restore button (when QR was dismissed and phone is unpaired), Browse/Close toggle button
 - **Middle Content** (expanded only): Two-column layout — left directory navigator + right channel tile grid. Clicking a tile calls `onSwitchChannel(id)`
-- **Playlist Strip** (collapsed/minimized only): Horizontal scrollable row of video thumbnails for the current channel. Active video marked with "NOW" badge. Clicking a thumbnail calls `onJumpToVideo(index)`
-- **Bottom Panel** (always visible): Interactive scrub bar, now-playing info (thumbnail + title + channel), time display, and playback controls (prev/play/next video, prev/next channel, fullscreen)
+- **Playlist Strip** (collapsed/minimized only): Horizontal scrollable row of video thumbnails for the current channel. Active video marked with "NOW" badge. Watched videos show a **green checkmark** badge (bottom-right corner). Clicking a thumbnail calls `onJumpToVideo(index)`. Checkmarks driven by `seenVideoIds` Set from `useWatchHistory`.
+- **Bottom Panel** (always visible): Interactive scrub bar, now-playing info (thumbnail + title + channel), time display, and playback controls (prev/**play-pause toggle**/next video, prev/next channel, **copy-link button**, fullscreen). The play/pause button icon toggles based on the `isPlaying` prop.
 
 **Channel Browser Layout (Middle Content):**
 
@@ -166,16 +173,27 @@ The playlist strip probes YouTube thumbnails on load. If a thumbnail is 120x90px
 
 ### Minimal Remote (legacy default)
 
-#### Visibility Logic
-- **Mouse movement**: sets `mouseActive=true`, clears after 450ms of inactivity
-- **Channel banner**: shows on channel switch or keyboard digit input; auto-hides after 4s
+#### Visibility Logic (see `useChromeVisibility`)
+- **Mouse movement**: sets `mouseActive=true`, clears after `mouseInactiveMs` (default 2 500 ms) of inactivity.
+- **Channel banner**: shows on channel switch or initial load; auto-hides after `bannerMs` (default 4 000 ms). Triggered via `pingBanner()`.
+- `showQR`: QR lingers 30 s after chrome hides; re-appears any time chrome becomes visible. Reconciliation is event-driven — no setState in effects.
 - `chromeVisible = mouseActive || showBanner`
 
 ### MiniQR (`src/components/MiniQR.tsx`)
 - Shown only when unpaired (`!paired && pairingCode && sessionId && showQR && !qrDismissed`)
-- Hides 10 seconds after chrome goes away (`qrHidden` state + timeout)
-- Reappears when chrome becomes visible again
+- QR size is **112 px** (up from previous 80 px); label reads "pair remote"
+- Uses `useSyncExternalStore` to read `window.location.origin` and `.port` — avoids React 19 setState-in-effect lint errors from the previous direct `useEffect` approach
 - On pairing, replaced by a small green pulse dot
+
+#### QR Linger Behaviour (`useChromeVisibility`)
+
+Chrome visibility (HUD / lower-third / QR) is driven by `src/lib/useChromeVisibility.ts`:
+
+- Mouse movement → `mouseActive=true`; resets after `mouseInactiveMs` (default 2 500 ms) of no movement.
+- Channel switch / initial load → `showBanner=true` for `bannerMs` (default 4 000 ms).
+- `showQR = !qrHidden`. The QR **lingers for 30 s** (`qrLingerMs` default) after chrome goes away, so viewers always have a window to pair.
+- **Event-driven reconciliation**: `reconcileQr()` is called directly from mouse-event handlers and timeout callbacks — never inside a `useEffect` body. This eliminates React 19 "setState called during render" violations that arise from effects that both read and update state.
+- `pingBanner()` is the external API for triggering the banner from `TVClient` on channel switch.
 
 #### QR Dismiss / Restore
 
@@ -200,9 +218,11 @@ Two states controlled by `expanded` prop:
 
 `onTogglePlay` prop connects the play/pause button to `TVClient.handleScreenClick()`.
 
-### Channel Banner
-- Top-left overlay: channel number, icon, name, current video title
-- Shown on initial load (4s), channel switch (4s), and keyboard digit entry
+### Channel Banner (TVOverlays)
+- Top-left overlay rendered by `TVOverlays`: Frogo logo + a glassmorphic card showing **channel icon + channel name** on the first line and **current video title** (truncated) below.
+- Shown on initial load (4 s) and channel switch (4 s); driven by `showBanner` from `useChromeVisibility`.
+- `TVOverlays` receives `bannerChannelName`, `bannerChannelIcon`, `bannerVideoTitle` props from `TVClient` so the overlay knows what to display without reaching into channel state itself.
+- A separate channel-number input overlay (`channelNumber` prop) overlays top-left when the user is buffering keyboard digits.
 
 ### Now Playing Info
 - Bottom-left overlay: channel number, icon, name, video title + description snippet

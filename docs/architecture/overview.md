@@ -49,13 +49,15 @@ Links a TV player to a phone remote.
 Server components on `/`, `/watch/[slug]`, `/watch/[slug]/[videoId]`, and `/channel/[slug]` call `isMobileRequest()` (reads the `User-Agent` header) before any DB queries. Mobile browsers are redirected to their `/mobile` equivalents. Desktop browsers proceed to the TV flow. See [Mobile Experience](mobile-experience.md) for full details.
 
 ### TV Playback
-1. `/` redirects mobile users to `/mobile`; desktop browsers redirect to the first channel (`/watch/[slug]`)
+1. `/` redirects mobile users to `/mobile`; desktop browsers redirect to the first channel (`/watch/[...slug]`)
 2. Server component fetches **all channels** + their videos in parallel; filters unavailable via oEmbed
 3. `TVClient` receives all channels; channel switching is client-side state (no navigation)
-4. `TVClient` calculates broadcast position from half-hour schedule boundaries
-5. YouTube player runs fullscreen, no controls, transparent overlay
-6. Mouse movement reveals on-screen chrome (450ms fade); click expands full guide
-7. QR code + 4-digit code linger 10s after chrome fades; hidden when paired
+4. `TVClient` resolves resume position: URL `?v=slug&t=seconds` > `localStorage` > first video (no broadcast schedule)
+5. `useWatchProgress` syncs position to URL + localStorage every 5 s (PLAYING-gated) and to the DB every 5 min
+6. `useWatchHistory` fetches seen video IDs per channel; playlist strip shows green checkmarks on watched videos
+7. YouTube player runs fullscreen, no controls, transparent overlay
+8. Mouse movement reveals on-screen chrome (2.5 s inactivity fade); click expands full guide
+9. QR code lingers **30 s** after chrome fades; re-appears every 3 min while unpaired; hidden when paired
 
 ### Phone Remote
 1. Scan QR or enter 4-digit code at `/pair`
@@ -65,7 +67,9 @@ Server components on `/`, `/watch/[slug]`, `/watch/[slug]/[videoId]`, and `/chan
 5. No play/pause command — TV is always broadcasting
 
 See also:
-- [TV Mode](tv-mode.md) — schedule system, client-side channel switching, YouTube player, on-screen chrome
+- [TV Mode](tv-mode.md) — resume-from-last, client-side channel switching, YouTube player, on-screen chrome
+- [Playback Model](playback-model.md) — three-tier resume priority, URL slugs, PLAYING-gated writes
+- [Watch History](watch-history.md) — seen-video tracking, `/api/history`, `useWatchHistory`, playlist checkmarks
 - [Channel Hierarchy](channel-hierarchy.md) — tree model, scoped navigation, breadcrumbs, directory navigator
 - [Pairing](pairing.md) — QR pairing flow, command protocol, Realtime subscription, e2e tests
 - [Mobile Experience](mobile-experience.md) — UA detection, /mobile route tree, on-demand playback
@@ -101,10 +105,15 @@ The `AnalyticsProvider` client component wraps the app and fires `analytics.page
 - `src/app/mobile/watch/[slug]/[videoId]/page.tsx` -- Mobile video watch (server)
 - `src/app/mobile/watch/[slug]/[videoId]/MobileWatchClient.tsx` -- Mobile video player (client)
 - `src/app/watch/[...slug]/page.tsx` -- Channel watch server component (resolves multi-segment paths, video filtering, mobile redirect)
-- `src/app/watch/[...slug]/TVClient.tsx` -- Fullscreen TV client (schedule, remote, QR, scoped directory navigation)
+- `src/app/watch/[...slug]/TVClient.tsx` -- Fullscreen TV client (resume-from-last, remote, QR, scoped directory navigation)
+- `src/app/watch/[...slug]/TVOverlays.tsx` -- Non-interactive TV overlays (QR card, mute hint, channel banner with name+icon+title, paired dot)
 - `src/app/watch/[slug]/opengraph-image.tsx` -- Dynamic OG image per channel
+- `src/app/api/history/route.ts` -- Watch history GET (seen video IDs) + POST (position/event recording)
 - `src/app/pair/page.tsx` -- Phone remote UI
-- `src/lib/schedule.ts` -- Broadcast schedule logic
+- `src/lib/schedule.ts` -- Broadcast schedule logic (retained, not currently called)
+- `src/lib/useWatchProgress.ts` -- URL slug + localStorage + DB position persistence
+- `src/lib/useWatchHistory.ts` -- Fetches seen video IDs per channel; optimistic markSeen
+- `src/lib/useChromeVisibility.ts` -- Event-driven chrome / QR visibility state
 - `src/lib/youtube-check.ts` -- YouTube oEmbed availability check (render-time)
 - `src/lib/youtube-api.ts` -- YouTube Data API v3 wrapper (edit-time: add/bulk/refresh/import)
 - `src/lib/channel-paths.ts` -- Channel tree helpers (path building, resolution, siblings, ancestors, descendants)
