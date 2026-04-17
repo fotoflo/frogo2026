@@ -8,7 +8,7 @@ The goal is multi-tenant channel curation: anyone with a Claude instance can reg
 
 - `supabase/migrations/20260410020000_mcp_auth.sql` — four tables: `mcp_clients`, `mcp_auth_sessions`, `mcp_auth_codes`, `mcp_access_tokens`. RLS enabled, no public policies — service-role only.
 - `src/lib/mcp-auth.ts` — token generation/hashing, S256 PKCE verification, `resolveBearerToken()` for `/api/mcp`, and `getIssuer()` helper (honors `x-forwarded-host`/`x-forwarded-proto`).
-- `src/lib/youtube-meta.ts` — `fetchVideoMeta()` used by the `add_video` tool. Title via noembed, duration scraped from the watch-page HTML with `hl=en&gl=US` + Chrome UA to dodge YouTube's EU consent wall. Accepts caller-supplied overrides to skip the server-side fetch entirely.
+- `src/lib/youtube-api.ts` — YouTube Data API v3 wrapper used by every video-write tool (`add_video`, `add_videos_bulk`, `refresh_video_metadata`, `import_youtube_playlist`, `import_youtube_channel`). See [YouTube Metadata](youtube-metadata.md) for the full story.
 - `src/app/.well-known/oauth-authorization-server/route.ts` — RFC 8414 AS metadata (endpoints, supported grants, S256, `token_endpoint_auth_methods_supported: ["none"]`).
 - `src/app/.well-known/oauth-protected-resource/route.ts` — RFC 9728 protected-resource metadata. Points MCP clients at the AS that protects `/api/mcp`.
 - `src/app/api/oauth/register/route.ts` — RFC 7591 Dynamic Client Registration. Accepts any `client_name` + `redirect_uris`, issues a random `mcp_*` client_id. Public clients only (no secret). Validates `http` only allowed for localhost.
@@ -116,30 +116,43 @@ which is the MCP-spec-mandated discovery hint that triggers an OAuth flow in the
 
 ### Tools (scope `frogo:curate`)
 
-All tools are scoped to the authenticated user via `owner_id` — users can only read/modify their own channels.
+All tools are scoped to the authenticated user via `owner_id` — users can only read/modify their own channels. Each tool lives in its own file under `src/app/api/mcp/tools/` and is registered in `src/app/api/mcp/registry.ts`.
+
+**Channel tools**
 
 | Tool | Parameters | Returns |
 |---|---|---|
-| `list_channels` | — | Array of channels the caller owns: `id`, `name`, `slug`, `path`, `description`, `icon`, `parent_id`, `position`, `video_count`. |
+| `list_channels` | — | Array of owned channels: `id`, `name`, `slug`, `path`, `description`, `icon`, `parent_id`, `position`, `video_count`. |
 | `get_channel` | `id` _or_ `path` (e.g. `"business/startups"`) | One channel + ordered playlist (videos with `id`, `youtube_id`, `title`, `thumbnail_url`, `duration_seconds`, `start_seconds`, `end_seconds`, `position`). |
-| `create_channel` | `name` (required); optional `description`, `icon`, `slug`, `parent_id` _or_ `parent_path` | Creates a new owned channel. Slug derived from the name if omitted. Parent can be specified by uuid or URL path (`"business/startups"`) — mutually exclusive. |
-| `update_channel` | `id` (required); optional `name`, `slug`, `description`, `icon`, `parent_id` _or_ `parent_path` | Updates an existing owned channel. Omitted fields are unchanged. `parent_id: null` or `parent_path: ""` moves the channel to the root. Reparenting is validated — a channel can't become a descendant of itself (uses `descendantIds` from `channel-paths.ts`). |
-| `delete_channel` | `id` (required); optional `force` (boolean) | Deletes an owned channel and its videos. If the channel has sub-channels, the call is rejected unless `force: true` — in which case sub-channels are promoted to root (`parent_id` set to null via the `ON DELETE SET NULL` FK). |
-| `add_video` | `channel_id`, `url`; optional `title` and `duration_seconds` overrides | Appends to the channel's playlist. Title + duration normally fetched via `fetchVideoMeta`, but Vercel datacenter IPs sometimes hit YouTube's consent wall — passing overrides bypasses the server-side fetch. |
-| `delete_video` | `video_id` | Removes a video. Ownership checked via the video's channel. |
-| `reorder_videos` | `channel_id`, `ordered_video_ids[]` | Sets the playlist order. Unmentioned videos are appended at the end in their current order. |
+| `create_channel` | `name` (required); optional `description`, `icon`, `slug`, `parent_id` _or_ `parent_path` | Creates a new owned channel. Slug derived from the name if omitted. Parent can be specified by uuid or URL path — mutually exclusive. |
+| `update_channel` | `id` (required); optional `name`, `slug`, `description`, `icon`, `parent_id` _or_ `parent_path` | Updates an existing owned channel. Omitted fields unchanged. `parent_id: null` or `parent_path: ""` moves to root. Reparenting validated — a channel can't become a descendant of itself (uses `descendantIds` from `channel-paths.ts`). |
+| `delete_channel` | `id` (required); optional `force` (boolean) | Deletes an owned channel and its videos. Rejected if the channel has sub-channels unless `force: true` — in which case sub-channels are promoted to root via `ON DELETE SET NULL`. |
+| `search_channels` | `query` | Fuzzy search over owned channels by name/slug/description. |
+
+**Video tools**
+
+| Tool | Parameters | Returns |
+|---|---|---|
+| `add_video` | `channel_id`, `url` | Appends one YouTube video to the channel. Title/duration/thumbnail fetched via the Data API. |
+| `add_videos_bulk` | `channel_id`, `urls[]` (≤100) | Bulk append. Metadata batched 50/call. Returns `added`, `skipped_duplicates`, `failed` per item. Use instead of looping `add_video`. |
+| `import_youtube_playlist` | `channel_id`, `playlist_url`; optional `max_videos` (default 50, cap 200) | Import a YouTube playlist. Dedupes by `youtube_id`; skips live/upcoming streams. |
+| `import_youtube_channel` | `channel_id`, `channel_input` (`@handle`, `UC...`, or URL); optional `max_videos` | Import a YouTube channel's uploads feed (uploads playlist trick: `UU` + channel id tail). |
+| `list_videos` | `channel_id` | Ordered playlist for a channel. |
+| `delete_video` | `video_id` | Remove one video. Ownership checked via the video's channel. |
+| `delete_videos_bulk` | `channel_id`; `video_ids[]` _or_ `all: true` | Bulk delete, mirror of `add_videos_bulk`. Scoped by `channel_id` so a spoofed `video_ids` list can't touch other channels. `all: true` wipes the entire playlist (use when a bad import needs undoing). Exactly one of `video_ids` / `all` required. |
+| `update_video` | `video_id`; optional `title`, `start_seconds`, `end_seconds` | Edit a single video's metadata or trim points. |
+| `refresh_video_metadata` | `video_id` _or_ `channel_id` | Re-fetch title + duration + thumbnail from the Data API. Channel-wide refreshes batch 50/call. Videos YouTube no longer returns land in `failed` but are NOT auto-deleted. |
+| `reorder_videos` | `channel_id`, `ordered_video_ids[]` | Set playlist order. Unmentioned videos are appended at the end in their current order. |
+| `search_videos` | `query` | Fuzzy search over owned videos by title. |
+| `search_youtube` | `query`; optional `max_results` (default 10, cap 50), `min_length_seconds` | Read-only YouTube discovery. Results pipe into `add_video`/`add_videos_bulk`. Uses HTML scraping (not the Data API) because `search.list` costs 100 quota units/call. |
 
 All mutations call `requireOwnership(service, userId, channelId)` which does a `channels.eq("id", …).eq("owner_id", …)` lookup — redundant with the RLS-protected admin paths but explicit here since MCP uses the service client for token lookup.
 
-#### `add_video` metadata fallback
+#### YouTube metadata source
 
-YouTube serves an EU consent wall when the watch page is fetched from Vercel's datacenter IPs, so the default `fetchDuration()` scrape hits an interstitial with no `"lengthSeconds"`. Mitigations, in order:
+All video-write tools (add / bulk / import / refresh) fetch metadata via the **YouTube Data API v3** (`src/lib/youtube-api.ts`). This replaces the older HTML-scraping path that was vulnerable to YouTube's EU consent wall from Vercel datacenter IPs. `search_youtube` deliberately stays on the scraper because `search.list` is 100 quota units/call; the render-time availability filter stays on oEmbed because it's free and not consent-walled. Requires `YOUTUBE_API_KEY` in env. See [YouTube Metadata](youtube-metadata.md) for the full breakdown.
 
-1. **`hl=en&gl=US` + a real Chrome `User-Agent` + `Accept-Language: en-US`** on the watch-page request. Handles the common case.
-2. **Caller-supplied overrides.** `add_video` accepts optional `title` and `duration_seconds`. If both are passed, `fetchVideoMeta()` returns immediately with zero network calls; if only one is passed, the other is still scraped. This is the escape hatch when YouTube hardens bot-detection and Vercel's egress gets blocked again — the MCP client (Claude) can do the lookup on its end and pass the data in.
-3. **Structured `[youtube-meta]` logging** on every failure path (noembed status, watch-page status, HTML length when `lengthSeconds` is missing) so the next regression is diagnosable from Vercel logs.
-
-`duration_seconds` is **load-bearing**: the broadcast schedule in `src/lib/schedule.ts` computes the live edge by summing playlist durations. A zero or missing duration silently corrupts `whatsOnNow()` for the whole channel. The schema requires `> 0` and the tool rejects anything else — if you pass an override, make sure it's accurate.
+`duration_seconds` is **load-bearing**: the broadcast schedule in `src/lib/schedule.ts` computes the live edge by summing playlist durations. A zero or missing duration silently corrupts `whatsOnNow()` for the whole channel. Every write path rejects `isLive || durationSeconds <= 0`.
 
 ## Connecting Claude to the server
 
@@ -152,9 +165,9 @@ YouTube serves an EU consent wall when the watch page is fetched from Vercel's d
 3. Claude hits the URL, gets the `401 + WWW-Authenticate` response, reads the protected-resource metadata at `/.well-known/oauth-protected-resource`, discovers the authorization server at `/.well-known/oauth-authorization-server`, and auto-runs Dynamic Client Registration against `/api/oauth/register`.
 4. A browser window opens to `/api/oauth/authorize`. Frogo bounces you to Supabase Google signin, then to `/api/oauth/consent`. Click **Authorize**.
 5. Browser redirects back into Claude with the auth code. Claude exchanges it for an access token at `/api/oauth/token` and stores it.
-6. Claude's tool list now shows `list_channels`, `get_channel`, `create_channel`, `update_channel`, `delete_channel`, `add_video`, `delete_video`, `reorder_videos`.
+6. Claude's tool list now shows the channel + video tools listed above (`list_channels`, `get_channel`, `create_channel`, `update_channel`, `delete_channel`, `search_channels`, `add_video`, `add_videos_bulk`, `import_youtube_playlist`, `import_youtube_channel`, `list_videos`, `delete_video`, `delete_videos_bulk`, `update_video`, `refresh_video_metadata`, `reorder_videos`, `search_videos`, `search_youtube`).
 
-Try: _"List my Frogo channels"_, _"Create a channel called Test under business"_, _"Rename the Test channel to Demo"_, _"Delete the Demo channel"_, _"Add https://youtube.com/watch?v=dQw4w9WgXcQ to the Jazz channel"_.
+Try: _"List my Frogo channels"_, _"Create a channel called Test under business"_, _"Import https://youtube.com/playlist?list=PL... into Jazz"_, _"Refresh metadata on the Philosophy channel"_, _"Delete all videos in the Test channel"_.
 
 ### Claude Code (CLI)
 

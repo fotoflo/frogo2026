@@ -3,25 +3,25 @@
 | Bucket     | Count |
 |------------|-------|
 | <=50       | 67    |
-| 51-150     | 72    |
-| 151-300    | 27    |
+| 51-150     | 80    |
+| 151-300    | 30    |
 | 301-500    | 5     |
-| 501-1000   | 2     |
+| 501-1000   | 1     |
 | 1001-2000  | 0     |
 | 2000+      | 0     |
 
-- **Total files:** 173
-- **Over 500 lines:** 2
-- **Largest:** src/app/watch/[...slug]/TVClient.tsx (721 lines)
+- **Total files:** 183
+- **Over 500 lines:** 1
+- **Largest:** src/app/admin/channels/edit/[...slug]/ChannelEditor.tsx (507 lines)
 
-## Delta vs previous 2026-04-12 snapshot
+## Delta vs previous 2026-04-16 (earlier) snapshot
 
-- Total files: 144 → 173 (+29)
-- <=50 bucket: 63 → 67 (+4)
-- 51-150 bucket: 52 → 72 (+20)
-- 151-300 bucket: 20 → 27 (+7)
-- 501-1000 bucket: 4 → 2 (-2)
-- Over 500 lines: 4 → 2 (-2)
-- ClassicHUD.tsx (571 lines) refactored into an 8-file folder, each <200 lines — exited the 501-1000 bucket, new pieces land in 51-150 / 151-300
-- mcp/route.ts (969 lines) also dropped out of the 501-1000 bucket since last snapshot
-- Largest file shifted: mcp/route.ts (969) → TVClient.tsx (721)
+- Total files: 173 → 183 (+10)
+- 51-150 bucket: 72 → 80 (+8)
+- 151-300 bucket: 27 → 30 (+3)
+- 501-1000 bucket: 2 → 1 (-1)
+- Over 500 lines: 2 → 1 (-1)
+- Largest file shifted: TVClient.tsx (721) → ChannelEditor.tsx (507) — TVClient.tsx was split (new TVOverlays.tsx + six extracted hooks in src/lib/use*.ts)
+- New hook files land in 51-150; SearchResults.tsx and test files add to 51-150 / 151-300
+- src/lib/youtube-api.ts (277 lines) stays inside the 151-300 bucket — did not push any bucket up
+- No files over the 300-line cap except the 5 legacy 301-500 files and ChannelEditor.tsx (507) — cap violations unchanged in count

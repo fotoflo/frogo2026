@@ -67,7 +67,8 @@ See also:
 - [Channel Hierarchy](channel-hierarchy.md) — tree model, scoped navigation, breadcrumbs, directory navigator
 - [Pairing](pairing.md) — QR pairing flow, command protocol, Realtime subscription, e2e tests
 - [Mobile Experience](mobile-experience.md) — UA detection, /mobile route tree, on-demand playback
-- [MCP OAuth](mcp-oauth.md) — OAuth 2.1 AS, MCP server, channel CRUD tools (list, get, create, update, delete)
+- [MCP OAuth](mcp-oauth.md) — OAuth 2.1 AS, MCP server, full channel + video tool surface
+- [YouTube Metadata](youtube-metadata.md) — Data API v3 (edit-time) vs oEmbed (render-time) split, quota notes
 
 ### OG Image Generation
 Each channel has a dynamic OpenGraph image (1200x630 JPEG) generated via `next/og` and cached in Supabase Storage. See [OG Images](og-images.md) for the full caching and compression pipeline.
@@ -102,7 +103,8 @@ The `AnalyticsProvider` client component wraps the app and fires `analytics.page
 - `src/app/watch/[slug]/opengraph-image.tsx` -- Dynamic OG image per channel
 - `src/app/pair/page.tsx` -- Phone remote UI
 - `src/lib/schedule.ts` -- Broadcast schedule logic
-- `src/lib/youtube-check.ts` -- YouTube oEmbed availability check
+- `src/lib/youtube-check.ts` -- YouTube oEmbed availability check (render-time)
+- `src/lib/youtube-api.ts` -- YouTube Data API v3 wrapper (edit-time: add/bulk/refresh/import)
 - `src/lib/channel-paths.ts` -- Channel tree helpers (path building, resolution, siblings, ancestors, descendants)
 - `src/lib/supabase.ts` -- Database client
 - `src/lib/types.ts` -- TypeScript interfaces
