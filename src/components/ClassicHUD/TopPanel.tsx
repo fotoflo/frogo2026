@@ -89,40 +89,38 @@ export default function TopPanel({
       </div>
 
       <div className="flex items-center gap-2 min-w-0">
-        {isExpanded && (
-          <div className="relative shrink-0 min-w-0">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none min-[1600px]:w-4 min-[1600px]:h-4"
-              aria-hidden="true"
+        <div className="relative shrink-0 min-w-0">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30 pointer-events-none min-[1600px]:w-4 min-[1600px]:h-4"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.5-3.5" strokeLinecap="round" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search channels"
+            aria-label="Search channels"
+            className="bg-white/[0.06] text-white placeholder:text-white/30 rounded-md pl-7 pr-7 py-1 text-xs w-[170px] border border-white/5 focus:outline-none focus:border-accent/60 focus:bg-white/[0.09] transition-colors min-[1600px]:text-sm min-[1600px]:w-[220px] min-[1600px]:py-1.5 min-[1600px]:pl-8 min-[2000px]:text-base min-[2000px]:w-[280px]"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange("")}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors"
+              aria-label="Clear search"
             >
-              <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-3.5-3.5" strokeLinecap="round" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search channels"
-              aria-label="Search channels"
-              className="bg-white/[0.06] text-white placeholder:text-white/30 rounded-md pl-7 pr-7 py-1 text-xs w-[170px] border border-white/5 focus:outline-none focus:border-accent/60 focus:bg-white/[0.09] transition-colors min-[1600px]:text-sm min-[1600px]:w-[220px] min-[1600px]:py-1.5 min-[1600px]:pl-8 min-[2000px]:text-base min-[2000px]:w-[280px]"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => onSearchChange("")}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors"
-                aria-label="Clear search"
-              >
-                <svg width="14" height="14" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-                  <path d="M2 2l6 6M8 2l-6 6" />
-                </svg>
-              </button>
-            )}
-          </div>
-        )}
+              <svg width="14" height="14" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+                <path d="M2 2l6 6M8 2l-6 6" />
+              </svg>
+            </button>
+          )}
+        </div>
 
         {showQRButton && onShowQR && (
           <button
