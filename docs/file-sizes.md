@@ -2,25 +2,27 @@
 
 | Bucket     | Count |
 |------------|-------|
-| <=50       | 66    |
-| 51-150     | 82    |
+| <=50       | 81    |
+| 51-150     | 101   |
 | 151-300    | 31    |
 | 301-500    | 5     |
 | 501-1000   | 1     |
 | 1001-2000  | 0     |
 | 2000+      | 0     |
 
-- **Total files:** 185
+- **Total files:** 219
 - **Over 500 lines:** 1
 - **Largest:** src/app/admin/channels/edit/[...slug]/ChannelEditor.tsx (507 lines)
 
-## Delta vs previous 2026-04-16 snapshot
+## Delta vs previous 2026-04-17 snapshot (34 files added)
 
-- Total files: 183 → 185 (+2)
-- <=50 bucket: 67 → 66 (-1)
-- 51-150 bucket: 80 → 82 (+2)
-- 151-300 bucket: 30 → 31 (+1)
-- 301-500 bucket: 5 → 5 (unchanged)
-- 501-1000 bucket: 1 → 1 (unchanged)
-- New test files (oauth/register, oauth/token, mcp-auth) likely account for the +2 net new files landing in 51-150 / 151-300
-- ChannelEditor.tsx remains the only over-500 file at 507 lines — cap violations unchanged
+| Bucket     | Previous | Current | Change |
+|------------|----------|---------|--------|
+| <=50       | 66       | 81      | +15    |
+| 51-150     | 82       | 101     | +19    |
+| 151-300    | 31       | 31      | —      |
+| 301-500    | 5        | 5       | —      |
+| 501-1000   | 1        | 1       | —      |
+| **Total**  | **185**  | **219** | **+34**|
+
+**Notable:** 34 new files added (likely test files and generated code). ChannelEditor.tsx remains the only over-500-line file at 507 lines — code style violations unchanged. No files moved into the 301+ bucket.

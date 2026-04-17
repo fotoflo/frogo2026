@@ -61,10 +61,12 @@ Server components on `/`, `/watch/[slug]`, `/watch/[slug]/[videoId]`, and `/chan
 
 ### Phone Remote
 1. Scan QR or enter 4-digit code at `/pair`
-2. Phone writes `last_command` + `last_command_at` directly to Supabase (anon client)
-3. TV receives command via Supabase Realtime UPDATE subscription; deduplicates by timestamp
-4. Remote shows channel up/down, number pad (1-9), search, unpair button
-5. No play/pause command — TV is always broadcasting
+2. Phone enters fully-featured remote UI with three tabs (Remote, Guide, Chat)
+3. **Remote tab**: D-pad disc (4-way + center), volume/channel rockers, Bento grid (Search/Browse/Favorites/Recent), transport buttons
+4. **Guide tab**: Full channel directory browser with current channel highlight
+5. **Chat tab**: Send emoji reactions and text messages to TV (displayed via overlays)
+6. Phone displays live TV state (current video, channel, playback position, progress bar) via Realtime subscription
+7. Commands written directly to Supabase via anon client; TV receives via Realtime UPDATE; no play/pause command
 
 See also:
 - [TV Mode](tv-mode.md) — resume-from-last, client-side channel switching, YouTube player, on-screen chrome
@@ -109,7 +111,22 @@ The `AnalyticsProvider` client component wraps the app and fires `analytics.page
 - `src/app/watch/[...slug]/TVOverlays.tsx` -- Non-interactive TV overlays (QR card, mute hint, channel banner with name+icon+title, paired dot)
 - `src/app/watch/[slug]/opengraph-image.tsx` -- Dynamic OG image per channel
 - `src/app/api/history/route.ts` -- Watch history GET (seen video IDs) + POST (position/event recording)
-- `src/app/pair/page.tsx` -- Phone remote UI
+- `src/app/pair/page.tsx` -- Phone remote entry point
+- `src/app/pair/RemoteShell.tsx` -- Main remote container (tabs, panels, commands, state)
+- `src/app/pair/NowPlayingHero.tsx` -- Video info card with playback state and progress
+- `src/app/pair/DPad.tsx` -- D-pad disc, volume rocker, channel rocker
+- `src/app/pair/BentoGrid.tsx` -- Search/Browse/Favorites/Recent tile buttons
+- `src/app/pair/BottomNav.tsx` -- Tab navigation (Remote/Guide/Chat)
+- `src/app/pair/ChannelGuide.tsx` -- Channel directory browser
+- `src/app/pair/useRemoteState.ts` -- Realtime subscription to TV playback state
+- `src/app/pair/useFavorites.ts` -- Save/load favorite channels
+- `src/app/pair/useSwipeGestures.ts` -- D-pad swipe control
+- `src/app/api/pair/state/route.ts` -- GET current TV state for remote
+- `src/app/api/channels/guide/route.ts` -- GET full channel tree
+- `src/app/api/favorites/route.ts` -- GET/POST/DELETE favorites
+- `src/app/api/history/recent/route.ts` -- GET recently viewed channels
+- `src/components/ReactionOverlay.tsx` -- Display emoji reactions on TV
+- `src/components/ChatOverlay.tsx` -- Display chat messages on TV
 - `src/lib/schedule.ts` -- Broadcast schedule logic (retained, not currently called)
 - `src/lib/useWatchProgress.ts` -- URL slug + localStorage + DB position persistence
 - `src/lib/useWatchHistory.ts` -- Fetches seen video IDs per channel; optimistic markSeen

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import ShareButton from "./ShareButton";
 import type { RemoteState } from "./useRemoteState";
@@ -15,10 +15,14 @@ export default function NowPlayingHero({ state, isFavorite, onToggleFavorite }: 
   const { video, channel, playbackState, playbackPosition } = state;
   const [remaining, setRemaining] = useState(0);
 
+  const baseRemaining = useMemo(
+    () => (video ? Math.max(0, video.duration_seconds - playbackPosition) : 0),
+    [video, playbackPosition]
+  );
+
   useEffect(() => {
-    if (!video) return;
-    setRemaining(Math.max(0, video.duration_seconds - playbackPosition));
-  }, [video, playbackPosition]);
+    setRemaining(baseRemaining);
+  }, [baseRemaining]);
 
   useEffect(() => {
     if (playbackState !== "playing" || remaining <= 0) return;

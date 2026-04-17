@@ -4,13 +4,54 @@ Frogo2026 pairs a TV (desktop browser) with a phone remote, similar to how Chrom
 
 ## Key Files
 
+### TV-side pairing
 - `src/app/watch/[slug]/TVClient.tsx` — creates pairing session, holds Realtime subscription, handles commands
-- `src/app/pair/page.tsx` — phone remote UI: code entry, command sending, search
+- `src/components/MiniQR.tsx` — QR code overlay on TV screen
+
+### Phone remote (new architecture)
+- `src/app/pair/page.tsx` — entry point; renders `PairScreen` (pre-pair) or `RemoteShell` (paired)
+- `src/app/pair/layout.tsx` — font imports (Space Grotesk, Manrope, Material Symbols)
+- `src/app/pair/RemoteShell.tsx` — main remote container; manages state, tabs, panels; toast notifications; swipe gestures
+- `src/app/pair/PairScreen.tsx` — code entry UI (pre-pairing)
+- `src/app/pair/NowPlayingHero.tsx` — displays video thumbnail, title, channel, playback state, progress bar, action buttons
+- `src/app/pair/DPad.tsx` — D-pad disc (4-way + center), volume rocker, channel rocker
+- `src/app/pair/BentoGrid.tsx` — 4-tile grid: Search, Browse, Favorites, Recent (toggle panels)
+- `src/app/pair/SearchPanel.tsx` — search input, results, navigate by channel
+- `src/app/pair/ChannelBrowser.tsx` — full tree directory with search/filter
+- `src/app/pair/ChannelGuide.tsx` — channel guide tab content
+- `src/app/pair/FavoritesList.tsx` — saved channels panel
+- `src/app/pair/RecentChannels.tsx` — recently viewed channels panel
+- `src/app/pair/BottomNav.tsx` — tab navigation (Remote / Guide / Chat)
+- `src/app/pair/ReactionBar.tsx` — emoji reactions (displays on TV via `ReactionOverlay`)
+- `src/app/pair/ChatInput.tsx` — text message input (displays on TV via `ChatOverlay`)
+- `src/app/pair/TransportBar.tsx` — skip previous/next buttons (integrated into RemoteShell)
+- `src/app/pair/ShareButton.tsx` — copy video URL; integrated into `NowPlayingHero`
+- `src/app/pair/VolumeRocker.tsx` — volume controls (integrated into `DPad`)
+- `src/app/pair/ChannelRocker.tsx` — channel controls (integrated into `DPad`)
+
+### Phone remote hooks & utilities
+- `src/app/pair/useRemoteState.ts` — subscribes to pairing session Realtime; fetches video/channel metadata
+- `src/app/pair/useFavorites.ts` — save/load favorites from localStorage + server
+- `src/app/pair/useSwipeGestures.ts` — attach swipe listeners to D-pad container
+- `src/lib/usePairingSync.ts` — keeps pairing session state in sync (desktop ↔ mobile)
+- `src/lib/useReactions.ts` — send/subscribe to emoji reactions
+- `src/lib/useChatMessages.ts` — send/subscribe to chat messages
+
+### Phone remote overlays
+- `src/components/ReactionOverlay.tsx` — displays incoming emoji reactions on TV
+- `src/components/ChatOverlay.tsx` — displays incoming messages on TV
+
+### API endpoints
 - `src/app/api/pair/route.ts` — POST creates pairing session, returns `{ code, sessionId }`
 - `src/app/api/pair/join/route.ts` — POST looks up session by code, marks `paired=true`
+- `src/app/api/pair/state/route.ts` — GET returns current TV state (video, channel, position, playback state)
 - `src/app/api/tunnel-url/route.ts` — GET returns ngrok URL from `.ngrok-url` file
 - `src/app/api/network-ip/route.ts` — GET returns LAN IP as fallback
-- `src/components/MiniQR.tsx` — QR code overlay on TV screen
+- `src/app/api/channels/guide/route.ts` — GET returns full channel tree for guide
+- `src/app/api/favorites/route.ts` — GET/POST favorites
+- `src/app/api/history/recent/route.ts` — GET recently viewed channels
+
+### Testing
 - `src/lib/pairing.e2e.test.ts` — e2e tests for the full pairing lifecycle
 
 ## Pairing Flow
@@ -103,17 +144,79 @@ The QR code encodes `https://<host>/pair?code=XXXX`. Scanning it opens `/pair` w
 
 ## Phone Remote UI (`/pair`)
 
-### Pre-pairing screen
+The phone remote is a full-featured control and information center for the TV. Built with a glass-morphism design (semi-transparent, blurred, accent-colored borders) using Material Symbols icons and Manrope/Space Grotesk typography.
+
+### Pre-pairing screen (`PairScreen.tsx`)
 - 4-digit numeric input with large font
+- Animated slide-up transitions
 - Debug log panel showing request/response details
 - Auto-pairs immediately if `?code=XXXX` is in the URL (from QR scan)
 
-### Post-pairing remote
-- **Status bar**: green pulse, "Connected - live" when Realtime is subscribed; Unpair button resets all state to show the code entry screen again
-- **Search panel** (toggle): debounced 300ms search via `/api/search?q=`, results navigate by `navigate_{slug}` command
-- **Channel Up/Down**: large touch targets, sends `prev`/`next`
-- **Number pad 1–9**: sends `channel_N`
-- **Debug toast**: 2-second overlay confirming each command sent or showing Supabase error
+### Post-pairing remote layout (`RemoteShell.tsx`)
+
+The remote is built as a tabbed interface with three main sections:
+
+#### Main Header
+- **FROGO** branding with "LIVE" / "..." status indicator (green pulse when connected)
+- **Unpair button** (top right) — clears all state and returns to code entry screen
+
+#### Now Playing Hero (`NowPlayingHero.tsx`)
+- Large thumbnail with playback state badge ("LIVE" or "PAUSED")
+- Video title + channel name/icon
+- Live progress bar (green gradient, 1px height) showing remaining time
+- Action buttons: watch on mobile, share, favorite (★/☆)
+- Shows "Waiting for TV…" when `loading=true` or no video yet
+
+#### Three-tab navigation (`BottomNav.tsx`)
+1. **Remote** — main control interface
+2. **Guide** — channel directory with browsing
+3. **Chat** — send messages to the TV (displayed as `ChatOverlay`)
+
+### Remote Tab Controls
+
+#### D-Pad disc (`DPad.tsx`)
+- Center: **Play/Pause** button (green accented, shows current state)
+- Cardinal directions:
+  - **↑ Up** — previous channel (`prev`)
+  - **↓ Down** — next channel (`next`)
+  - **← Left** — previous video in playlist (`video_prev`)
+  - **→ Right** — next video in playlist (`video_next`)
+- **Left rocker** (Vol ±): volume up/down, mute toggle
+- **Right rocker** (Ch ±): channel up/down (duplicates D-pad vertical, for traditional TV feel)
+
+#### Bento Grid (`BentoGrid.tsx`)
+Four interactive tiles that toggle expandable panels:
+- **Search** — debounced 300ms search via `/api/search?q=`
+- **Browse** — full channel directory browser
+- **Favorites** — saved channels (persisted to localStorage via `useFavorites`)
+- **Recent** — recently watched channels (from `useRemoteState`)
+
+#### Transport section
+- **Skip Previous** (`video_prev`) and **Skip Next** (`video_next`) buttons for video-level control
+
+#### Expandable panels (mutually exclusive)
+- **SearchPanel** — live search results that navigate via `navigate_{slug}` command
+- **ChannelBrowser** — tree-based channel directory
+- **FavoritesList** — saved favorites with toggle
+- **RecentChannels** — last viewed channels
+- **ReactionBar** — send emoji reactions to the TV (appears on `ReactionOverlay`)
+
+#### Chat input
+- Text input for messages (displayed on TV via `ChatOverlay`)
+- Shows "Messages appear on the TV screen"
+
+### Guide Tab (`ChannelGuide.tsx`)
+- Full-screen channel directory
+- Highlights current channel
+- Navigate by `navigate_{slug}` command
+
+#### Toast notifications
+- 1.5-second overlay at top of screen showing:
+  - Command sent (green, `#cbff72`)
+  - Supabase errors (red prefix "ERR: ")
+  - Custom messages
+
+### Command protocol
 
 Commands are written directly to Supabase via the anon client (no API route hop):
 
@@ -123,6 +226,53 @@ await supabase.from("pairing_sessions").update({
   last_command_at: new Date().toISOString(),
 }).eq("id", sessionId);
 ```
+
+#### Extended command set
+| Command | Action |
+|---------|--------|
+| `next` | Next channel |
+| `prev` | Previous channel |
+| `channel_1` … `channel_9` | Jump to channel by number |
+| `navigate_{slug}` | Jump to channel by slug (search results, browser) |
+| `video_next` | Next video in playlist |
+| `video_prev` | Previous video in playlist |
+| `play_pause` | Toggle play/pause |
+| `volume_up` | Increase volume |
+| `volume_down` | Decrease volume |
+| `mute_toggle` | Toggle mute |
+
+### Remote state subscription (`useRemoteState.ts`)
+
+Phone uses a Realtime subscription to the pairing session to display live TV state:
+
+```ts
+supabase
+  .channel(`remote-state:${sessionId}`)
+  .on('postgres_changes', {
+    event: 'UPDATE',
+    schema: 'public',
+    table: 'pairing_sessions',
+    filter: `id=eq.${sessionId}`,
+  }, (payload) => {
+    // Handle: current_video_id, playback_state, playback_position updates
+  })
+  .subscribe();
+```
+
+Displays:
+- Current video title, thumbnail, duration, and remaining time
+- Current channel name and icon
+- Playback state badge (LIVE/PAUSED)
+- Live progress bar that auto-advances when `playback_state === 'playing'`
+
+### Supporting features
+
+- **Favorites** (`useFavorites.ts`, `/api/favorites`): save channels to localStorage + server
+- **Recent channels** (`/api/history/recent`): track viewing history
+- **Reactions** (`useReactions.ts`, `/api/pair/reactions`): send emoji to TV, displayed via `ReactionOverlay` overlay
+- **Chat** (`useChatMessages.ts`, `/api/chat`): send text messages to TV, displayed via `ChatOverlay`
+- **Swipe gestures** (`useSwipeGestures.ts`): up/down swipes on D-pad trigger channel change; left/right trigger video skip
+- **Share button** (`ShareButton.tsx`): copy current video URL to clipboard
 
 ## Session Lifecycle
 
@@ -153,6 +303,35 @@ Tests load `.env.local` directly (no dotenv dependency) and clean up created row
 
 Run: `npx vitest run src/lib/pairing.e2e.test.ts`
 
+## Design System
+
+### Glass Morphism
+All remote UI surfaces use a consistent glass-morphism aesthetic:
+- **Background**: 3–6% white opacity with `backdrop-filter: blur(20px)`
+- **Borders**: 6–10% white opacity, 1px solid
+- **Accent**: Lime green (`#cbff72`) for active states, hover states, and primary CTAs
+- **Text**: White on dark background; neutral-400/500 for secondary text
+- **Spacing**: 6px–8px padding, 8–16px gaps between elements
+- **Shadows**: Subtle glow effects using accent color at 4–8% opacity
+
+### Typography
+- **Logo/Headlines**: Space Grotesk (500–700 weight), tracking-wider
+- **Body**: Manrope (400–600 weight)
+- **Monospace**: Built-in system font for debug info and timers
+- **Icons**: Material Symbols Outlined (wght 100–700)
+
+### Interaction feedback
+- **Active/pressed**: `active:scale-95` (shrink 5%)
+- **Disabled**: `opacity-30`
+- **Loading**: Spinning border loader (2px, white 30% → white 100%)
+- **Toast**: 1.5s auto-fade; color-coded by message type
+
+### Responsive layout
+- **Max width**: 28rem (max-w-lg) for phone content area
+- **Safe area**: `env(safe-area-inset-bottom)` for notched devices
+- **Touch targets**: min 44×44px for buttons
+- **Bottom nav**: Fixed, gradient overlay, backdropped
+
 ## API Endpoints
 
 ### `POST /api/pair`
@@ -160,6 +339,9 @@ Creates a pairing session. Called by `TVClient` on mount. Returns `{ code, sessi
 
 ### `POST /api/pair/join`
 Looks up session by 4-digit code, validates not expired, marks `paired=true`. Returns `{ sessionId }` or `{ error }`.
+
+### `GET /api/pair/state?sessionId=X`
+Returns current TV state for the phone remote: video title, channel info, playback position, duration.
 
 ### `GET /api/tunnel-url`
 Returns the current ngrok tunnel URL read from `.ngrok-url` file (dev only).
@@ -169,3 +351,18 @@ Returns the local machine's network IP. Fallback for QR codes when ngrok is not 
 
 ### `GET /api/search?q=`
 Full-text search across videos. Used by the phone remote's search feature.
+
+### `GET /api/channels/guide`
+Returns full channel tree (all channels with parent/children). Used by `ChannelGuide`.
+
+### `GET /api/favorites`
+Fetch user's saved channels.
+
+### `POST /api/favorites`
+Add a channel to favorites.
+
+### `DELETE /api/favorites/:channelId`
+Remove a channel from favorites.
+
+### `GET /api/history/recent`
+Returns recently viewed channels.
