@@ -8,6 +8,11 @@ import { FEATURES } from "@/lib/settings";
 import { useInteractions } from "@/lib/useInteractions";
 import { useViewerPresence } from "@/lib/useViewerPresence";
 import { usePairing } from "@/lib/usePairing";
+import { usePairingSync } from "@/lib/usePairingSync";
+import { useReactions } from "@/lib/useReactions";
+import { useChatMessages } from "@/lib/useChatMessages";
+import ReactionOverlay from "@/components/ReactionOverlay";
+import ChatOverlay from "@/components/ChatOverlay";
 import { useChromeVisibility } from "@/lib/useChromeVisibility";
 import { useTVKeyboard } from "@/lib/useTVKeyboard";
 import { useAutoplay } from "@/lib/useAutoplay";
@@ -140,20 +145,27 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
     [commitSkip]
   );
 
-  const handleCommand = useCallback(
-    (command: string) => {
-      if (command === "next") nav.nextChannel();
-      else if (command === "prev") nav.prevChannel();
-      else if (command.startsWith("channel_")) {
-        nav.switchToSiblingIdx(parseInt(command.split("_")[1], 10) - 1);
-      } else if (command.startsWith("navigate_")) {
-        nav.switchChannelById(command.replace("navigate_", ""));
-      }
-    },
-    [nav]
-  );
+  const handleCommand = useCallback((command: string) => {
+    const p = playerRef.current;
+    switch (command) {
+      case "next": nav.nextChannel(); break;
+      case "prev": nav.prevChannel(); break;
+      case "play_pause": handleScreenClick(); break;
+      case "video_next": handleNextVideo(); break;
+      case "video_prev": handlePrevVideo(); break;
+      case "volume_up": if (p) { if (p.isMuted?.()) p.unMute?.(); p.setVolume?.(Math.min(100, (p.getVolume?.() ?? 50) + 10)); } break;
+      case "volume_down": if (p) p.setVolume?.(Math.max(0, (p.getVolume?.() ?? 50) - 10)); break;
+      case "mute_toggle": if (p) { p.isMuted?.() ? (p.unMute?.(), p.setVolume?.(100)) : p.mute?.(); } break;
+      default:
+        if (command.startsWith("channel_")) nav.switchToSiblingIdx(parseInt(command.split("_")[1], 10) - 1);
+        else if (command.startsWith("navigate_")) nav.switchChannelById(command.replace("navigate_", ""));
+    }
+  }, [nav, handleScreenClick, handleNextVideo, handlePrevVideo, playerRef]);
 
   const { pairingCode, sessionId, paired } = usePairing(handleCommand, activeVideo?.id);
+  usePairingSync({ sessionId, playerRef, channelId: channel.id, videoId: activeVideo?.id ?? null, isPlaying });
+  const { reactions } = useReactions(sessionId ? sessionId : null);
+  const chatMessages = useChatMessages(sessionId);
   const { channelNumber } = useTVKeyboard({
     onNumber: (n) => nav.switchToSiblingIdx(n - 1),
     onPrevChannel: nav.prevChannel,
@@ -218,6 +230,9 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
           />
         </div>
       )}
+
+      <ReactionOverlay reactions={reactions} />
+      <ChatOverlay messages={chatMessages} />
 
       <TVOverlays
         showMutedIndicator={autoplay.showMutedIndicator}
