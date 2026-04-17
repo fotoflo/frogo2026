@@ -18,12 +18,20 @@ export default function ChannelGrid({
   return (
     <div className="hud-right-panel">
       <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 p-3 min-[1600px]:grid-cols-[repeat(auto-fill,minmax(190px,1fr))] min-[1600px]:gap-4 min-[1600px]:p-4 min-[2000px]:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] min-[2000px]:gap-5 min-[2000px]:p-5">
-        {siblings.map((ch, i) => {
+        {siblings
+          .filter((ch) =>
+            ch.videos.length > 0 ||
+            allChannels.some((c) => c.parent_id === ch.id && c.videos.length > 0)
+          )
+          .map((ch, i) => {
           const isPlaying = ch.id === channel.id;
-          const firstVideo = ch.videos[0];
-          const thumbUrl =
-            firstVideo?.thumbnail_url ||
-            `https://img.youtube.com/vi/${firstVideo?.youtube_id}/mqdefault.jpg`;
+          const firstVideo =
+            ch.videos[0] ??
+            allChannels.find((c) => c.parent_id === ch.id && c.videos.length > 0)?.videos[0];
+          const thumbUrl = firstVideo
+            ? firstVideo.thumbnail_url ||
+              `https://img.youtube.com/vi/${firstVideo.youtube_id}/mqdefault.jpg`
+            : "";
           const isFolder = allChannels.some((c) => c.parent_id === ch.id);
           return (
             <button
@@ -38,13 +46,27 @@ export default function ChannelGrid({
                   isPlaying ? "ring-2 ring-accent" : "ring-1 ring-white/5"
                 }`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={thumbUrl}
-                  alt=""
-                  aria-hidden="true"
-                  className="w-full h-full object-cover"
-                />
+                {firstVideo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={thumbUrl}
+                    alt=""
+                    aria-hidden="true"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (img.src.includes("maxresdefault")) {
+                        img.src = `https://img.youtube.com/vi/${firstVideo.youtube_id}/hqdefault.jpg`;
+                      } else if (img.src.includes("hqdefault")) {
+                        img.src = `https://img.youtube.com/vi/${firstVideo.youtube_id}/mqdefault.jpg`;
+                      }
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-4xl opacity-40">
+                    {ch.icon}
+                  </div>
+                )}
                 {isPlaying && (
                   <>
                     <div className="absolute inset-0 bg-black/50" aria-hidden="true" />

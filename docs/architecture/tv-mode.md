@@ -152,6 +152,13 @@ The expanded channel browser uses a flex row (`.hud-content`) with two panels:
   - Thumbnail with aspect-video ratio, channel number badge (top-left), folder icon (top-right, if the channel has sub-channels), "PLAYING" pill (centered, for the active channel)
   - Channel name + icon always visible below the thumbnail (no longer hidden until hover)
 
+**ChannelGrid filtering and thumbnail logic (`ChannelGrid.tsx`):**
+
+- **Empty channel filtering**: Channels with no direct videos *and* no sub-channels that have videos are filtered out of the grid before rendering. A channel must satisfy `ch.videos.length > 0 || allChannels.some(c => c.parent_id === ch.id && c.videos.length > 0)` to appear.
+- **Folder channel thumbnail fallback**: A channel with no direct videos (a "folder" channel whose content lives in sub-channels) falls back to the first video of its first sub-channel that has videos: `ch.videos[0] ?? allChannels.find(c => c.parent_id === ch.id && c.videos.length > 0)?.videos[0]`. If no video is found at all, the channel's emoji icon is displayed instead.
+- **Thumbnail URL resolution**: The tile prefers `firstVideo.thumbnail_url` (from the DB), falling back to `mqdefault` from YouTube (`https://img.youtube.com/vi/{youtube_id}/mqdefault.jpg`).
+- **`img` `onError` cascade**: If the initial thumbnail fails to load, the `onError` handler retries in order: `maxresdefault` → `hqdefault` → `mqdefault`. The chain stops at `mqdefault` (no further fallback).
+
 **CSS layout:** The HUD wrapper (`.classic-hud`) uses `display: flex; flex-direction: column` with `max-height: min(70vh, 640px)` when expanded. On wide TVs it centers via `margin-inline: auto` with `max-width: 1800px` (fixes the prior asymmetric left-pinned layout). The middle content area uses `flex: 1 1 auto; min-height: 0; overflow: hidden` so the left and right panels can scroll independently.
 
 **Sizing strategy — Tailwind owns dimensions, CSS owns decoration:**
