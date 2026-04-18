@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import NowPlayingHero from "./NowPlayingHero";
 import DPad from "./DPad";
@@ -40,15 +41,8 @@ export default function RemoteShell({ sessionId, desktopSessionId, connected, on
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
-
+  const shouldClearRef = useRef(false);
   const swipeRef = useRef<HTMLDivElement>(null);
-  const swipeCallbacks = useMemo(() => ({
-    onSwipeUp: () => sendCommand("prev"),
-    onSwipeDown: () => sendCommand("next"),
-    onSwipeLeft: () => sendCommand("video_prev"),
-    onSwipeRight: () => sendCommand("video_next"),
-  }), []); // eslint-disable-line react-hooks/exhaustive-deps
-  useSwipeGestures(swipeRef, swipeCallbacks);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -65,14 +59,44 @@ export default function RemoteShell({ sessionId, desktopSessionId, connected, on
     showToast(error ? `ERR: ${error.message}` : command);
   }
 
+  const swipeCallbacks = useMemo(
+    // eslint-disable-next-line react-hooks/preserve-manual-memoization
+    () => ({
+      onSwipeUp: () => sendCommand("prev"),
+      onSwipeDown: () => sendCommand("next"),
+      onSwipeLeft: () => sendCommand("video_prev"),
+      onSwipeRight: () => sendCommand("video_next"),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sessionId]
+  );
+  useSwipeGestures(swipeRef, swipeCallbacks);
+
   useEffect(() => {
-    if (searchQuery.length < 2) { setSearchResults([]); return; }
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (searchQuery.length < 2) {
+      shouldClearRef.current = true;
+      return;
+    }
+
+    shouldClearRef.current = false;
     searchTimeoutRef.current = setTimeout(async () => {
       const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
       const data = await res.json();
-      setSearchResults(data.results);
+      setSearchResults(data.results ?? []);
     }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (shouldClearRef.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSearchResults([]);
+    }
   }, [searchQuery]);
 
   return (
@@ -90,12 +114,10 @@ export default function RemoteShell({ sessionId, desktopSessionId, connected, on
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-[100] flex justify-between items-center px-6 py-4"
+      <header className="sticky top-0 z-[100] flex justify-between items-center px-5 py-2.5"
         style={{ background: "linear-gradient(to bottom, #1a1a1a, #0e0e0e)", boxShadow: "0 0 40px rgba(203,255,114,0.06)" }}>
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-bold tracking-[0.2em] uppercase" style={{ fontFamily: "Space Grotesk, sans-serif", color: "#cbff72" }}>
-            FROGO
-          </h1>
+        <div className="flex items-center gap-2.5">
+          <Image src="/images/frogo/logo.png" alt="Frogo" width={80} height={24} className="brightness-110" />
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${connected ? "bg-green-400" : "bg-yellow-500"} animate-pulse`} />
             <span className="text-[10px] text-neutral-500">{connected ? "LIVE" : "..."}</span>
@@ -106,7 +128,7 @@ export default function RemoteShell({ sessionId, desktopSessionId, connected, on
         </button>
       </header>
 
-      <main className="flex-1 px-6 pt-4 pb-32 max-w-lg mx-auto w-full space-y-8">
+      <main className="flex-1 px-5 pt-2 pb-24 max-w-lg mx-auto w-full space-y-5">
         {/* Now Playing */}
         <NowPlayingHero
           state={remoteState}

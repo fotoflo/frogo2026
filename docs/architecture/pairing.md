@@ -10,7 +10,8 @@ Frogo2026 pairs a TV (desktop browser) with a phone remote, similar to how Chrom
 
 ### Phone remote (new architecture)
 - `src/app/pair/page.tsx` — entry point; renders `PairScreen` (pre-pair) or `RemoteShell` (paired)
-- `src/app/pair/layout.tsx` — font imports (Space Grotesk, Manrope, Material Symbols)
+- `src/app/pair/layout.tsx` — font imports (Space Grotesk, Manrope, Material Symbols); exports viewport config with `viewportFit=cover` for iOS safe area handling
+- `src/app/manifest.ts` — PWA web manifest enabling standalone mode (`display: standalone`) so users can add `/pair` to home screen and run without browser chrome
 - `src/app/pair/RemoteShell.tsx` — main remote container; manages state, tabs, panels; toast notifications; swipe gestures
 - `src/app/pair/PairScreen.tsx` — code entry UI (pre-pairing)
 - `src/app/pair/NowPlayingHero.tsx` — displays video thumbnail, title, channel, playback state, progress bar, action buttons
@@ -154,10 +155,11 @@ The phone remote is a full-featured control and information center for the TV. B
 
 ### Post-pairing remote layout (`RemoteShell.tsx`)
 
-The remote is built as a tabbed interface with three main sections:
+The remote is built as a tabbed interface with three main sections. The `/pair` page is PWA-ready with a web manifest (`src/app/manifest.ts`) that enables `display: standalone`, allowing users to install it to their home screen. When run as an installed app, the Safari URL bar is hidden and safe-area insets are respected via `viewportFit=cover` in the layout viewport config.
 
 #### Main Header
-- **FROGO** branding with "LIVE" / "..." status indicator (green pulse when connected)
+- **Frogo logo image** (left) — app branding
+- **"LIVE" / "..."** status indicator (center/right, green pulse when connected)
 - **Unpair button** (top right) — clears all state and returns to code entry screen
 
 #### Now Playing Hero (`NowPlayingHero.tsx`)

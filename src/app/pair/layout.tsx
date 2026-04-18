@@ -1,7 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
   title: "Frogo Remote",
+  appleWebApp: {
+    capable: true,
+    title: "Frogo Remote",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0e0e0e",
+  viewportFit: "cover",
 };
 
 export default function PairLayout({ children }: { children: React.ReactNode }) {

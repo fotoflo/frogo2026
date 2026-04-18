@@ -84,6 +84,10 @@ Mobile `/mobile/watch` is on-demand: the user picks a video, it starts from the 
 
 The `/pair` page (phone remote UI) includes a "Watch" link in the header that navigates to `/mobile`. This lets users who land on `/pair` without a TV to switch to the standalone mobile viewer without needing to go back.
 
+### PWA Support on /pair
+
+The `/pair` remote is PWA-enabled with a web manifest (`src/app/manifest.ts`) that declares `display: standalone`. Users can add `/pair` to their home screen (iOS "Add to Home Screen", Android "Install app") and run it as a full-screen web app without browser chrome. The layout viewport is configured with `viewportFit=cover` to respect iOS safe areas on notched devices (see `src/app/pair/layout.tsx`).
+
 ## Route Map
 
 ```
