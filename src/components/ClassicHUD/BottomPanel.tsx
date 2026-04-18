@@ -19,15 +19,15 @@ interface Props {
 }
 
 const CTRL_BTN =
-  "hud-ctrl-btn w-[30px] h-[30px] rounded-lg min-[1600px]:w-10 min-[1600px]:h-10 min-[1600px]:rounded-[10px] min-[2000px]:w-12 min-[2000px]:h-12 min-[2000px]:rounded-xl";
+  "hud-ctrl-btn w-[30px] h-[30px] rounded-lg pointer-coarse:w-11 pointer-coarse:h-11 pointer-coarse:rounded-[10px] min-[1600px]:w-10 min-[1600px]:h-10 min-[1600px]:rounded-[10px] min-[2000px]:w-12 min-[2000px]:h-12 min-[2000px]:rounded-xl active:bg-white/10";
 const CTRL_SVG =
-  "w-3.5 h-3.5 min-[1600px]:w-5 min-[1600px]:h-5 min-[2000px]:w-6 min-[2000px]:h-6";
+  "w-3.5 h-3.5 pointer-coarse:w-5 pointer-coarse:h-5 min-[1600px]:w-5 min-[1600px]:h-5 min-[2000px]:w-6 min-[2000px]:h-6";
 const CTRL_SVG_SM =
-  "w-3 h-3 min-[1600px]:w-4 min-[1600px]:h-4 min-[2000px]:w-5 min-[2000px]:h-5";
+  "w-3 h-3 pointer-coarse:w-4 pointer-coarse:h-4 min-[1600px]:w-4 min-[1600px]:h-4 min-[2000px]:w-5 min-[2000px]:h-5";
 const CTRL_SVG_LG =
-  "w-4 h-4 min-[1600px]:w-[22px] min-[1600px]:h-[22px] min-[2000px]:w-[26px] min-[2000px]:h-[26px]";
+  "w-4 h-4 pointer-coarse:w-6 pointer-coarse:h-6 min-[1600px]:w-[22px] min-[1600px]:h-[22px] min-[2000px]:w-[26px] min-[2000px]:h-[26px]";
 const DIVIDER =
-  "w-px h-5 bg-white/10 mx-1 min-[1600px]:h-6 min-[2000px]:h-7";
+  "w-px h-5 bg-white/10 mx-1 pointer-coarse:h-7 min-[1600px]:h-6 min-[2000px]:h-7";
 
 export default function BottomPanel({
   activeVideo,
@@ -42,14 +42,14 @@ export default function BottomPanel({
   onNextChannel,
   onVote,
 }: Props) {
-  const { barRef, progress: pct, currentTime, duration, handleScrubStart } = progress;
+  const { barRef, progress: pct, currentTime, duration, handleScrubStart, handleTouchScrubStart } = progress;
   const [copied, setCopied] = useState(false);
 
   return (
-    <div className="hud-bottom-panel h-[52px] px-3 py-1.5 gap-3 min-[1600px]:h-[68px] min-[1600px]:px-[18px] min-[1600px]:py-2 min-[1600px]:gap-4 min-[2000px]:h-20 min-[2000px]:px-6 min-[2000px]:py-2.5 min-[2000px]:gap-5">
+    <div className="hud-bottom-panel h-[52px] px-3 py-1.5 gap-3 pointer-coarse:h-[72px] pointer-coarse:px-4 pointer-coarse:gap-4 min-[1600px]:h-[68px] min-[1600px]:px-[18px] min-[1600px]:py-2 min-[1600px]:gap-4 min-[2000px]:h-20 min-[2000px]:px-6 min-[2000px]:py-2.5 min-[2000px]:gap-5">
       <div
         ref={barRef}
-        className="hud-progress-bar hud-progress-bar-interactive h-1 hover:h-2 min-[1600px]:h-1.5 min-[1600px]:hover:h-2.5"
+        className="hud-progress-bar hud-progress-bar-interactive h-1 hover:h-2 pointer-coarse:h-[6px] pointer-coarse:active:h-2.5 min-[1600px]:h-1.5 min-[1600px]:hover:h-2.5 touch-none"
         role="slider"
         aria-label="Video progress"
         aria-valuemin={0}
@@ -58,10 +58,11 @@ export default function BottomPanel({
         aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
         tabIndex={0}
         onMouseDown={handleScrubStart}
+        onTouchStart={handleTouchScrubStart}
       >
         <div className="hud-progress-fill" style={{ width: `${pct}%` }} aria-hidden="true" />
         <div
-          className="hud-progress-handle w-3 h-3 -ml-1.5 -mt-1.5 min-[1600px]:w-4 min-[1600px]:h-4 min-[1600px]:-ml-2 min-[1600px]:-mt-2"
+          className="hud-progress-handle w-3 h-3 -ml-1.5 -mt-1.5 pointer-coarse:w-5 pointer-coarse:h-5 pointer-coarse:-ml-2.5 pointer-coarse:-mt-2.5 min-[1600px]:w-4 min-[1600px]:h-4 min-[1600px]:-ml-2 min-[1600px]:-mt-2"
           style={{ left: `${pct}%` }}
           aria-hidden="true"
         />

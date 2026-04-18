@@ -79,7 +79,7 @@ export default function TVOverlays({
             title="Click to dismiss"
           >
             <MiniQR code={pairingCode} />
-            <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/50 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100" aria-hidden="true">
+            <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/50 group-active:bg-black/50 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 group-active:opacity-100" aria-hidden="true">
               <svg width="14" height="14" viewBox="0 0 10 10" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round">
                 <path d="M2 2l6 6M8 2l-6 6" />
               </svg>

@@ -31,7 +31,7 @@ export default function PlaylistStrip({
 
   return (
     <div className="hud-playlist-strip" aria-label="Playlist" role="group">
-      <div className="flex gap-1.5 overflow-x-auto px-2 py-1.5 scrollbar-hide min-[1600px]:gap-2 min-[1600px]:px-3 min-[1600px]:py-2 min-[2000px]:gap-2.5 min-[2000px]:px-4 min-[2000px]:py-2.5">
+      <div className="flex gap-1.5 overflow-x-auto px-2 py-1.5 scrollbar-hide pointer-coarse:gap-2 pointer-coarse:px-3 pointer-coarse:py-2.5 min-[1600px]:gap-2 min-[1600px]:px-3 min-[1600px]:py-2 min-[2000px]:gap-2.5 min-[2000px]:px-4 min-[2000px]:py-2.5">
         {videos.map((v, i) => {
           if (badThumbs.has(v.youtube_id)) return null;
           const isActive = i === currentVideoIndex;
@@ -45,9 +45,9 @@ export default function PlaylistStrip({
               onClick={() => onJumpToVideo(i)}
               aria-label={`Play: ${v.title}${isActive ? " (now playing)" : ""}`}
               aria-current={isActive ? "true" : undefined}
-              className={`shrink-0 w-[80px] h-[45px] rounded overflow-hidden relative cursor-pointer min-[1600px]:w-[108px] min-[1600px]:h-[60px] min-[2000px]:w-[128px] min-[2000px]:h-[72px] ${
-                isActive ? "ring-1 ring-accent" : "opacity-60 hover:opacity-100"
-              } transition-opacity`}
+              className={`shrink-0 w-[80px] h-[45px] rounded overflow-hidden relative cursor-pointer pointer-coarse:w-[112px] pointer-coarse:h-[63px] min-[1600px]:w-[108px] min-[1600px]:h-[60px] min-[2000px]:w-[128px] min-[2000px]:h-[72px] ${
+                isActive ? "ring-1 ring-accent" : "opacity-60 hover:opacity-100 pointer-coarse:opacity-80 active:opacity-100"
+              } transition-opacity active:scale-[0.97]`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img

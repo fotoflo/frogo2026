@@ -15,8 +15,9 @@ The TV mode is the core experience of Frogo2026. The app behaves like a real tel
 - `src/lib/settings.ts` — feature flags (`FEATURES.CLASSIC_HUD`, etc.)
 - `src/lib/useWatchProgress.ts` — URL slug + localStorage + DB position persistence
 - `src/lib/useWatchHistory.ts` — fetches seen video IDs per channel; `markSeen` for optimistic updates
-- `src/lib/useChromeVisibility.ts` — event-driven QR reconciliation + mouse/banner chrome state
+- `src/lib/useChromeVisibility.ts` — event-driven QR reconciliation + mouse/banner chrome state + touch support
 - `src/lib/useTVKeyboard.ts` — keyboard shortcuts including mute toggle
+- `src/lib/mobile-detect.ts` — tablet detection; tablets get TV interface
 - `src/app/watch/[slug]/opengraph-image.tsx` — dynamic OG image per channel
 - `src/lib/youtube-check.ts` — oEmbed availability filter
 - `scripts/dev.mjs` — dev server with ngrok tunnel
@@ -167,16 +168,41 @@ Responsive sizing lives in the TSX via Tailwind responsive variants (`min-[1600p
 **Custom scrollbars:** Both `.hud-left-panel .hud-scroll` and `.hud-right-panel` use thin 6px custom scrollbars (`scrollbar-width: thin`) with translucent white thumbs, replacing chunky native scrollbars.
 
 **Interaction model:**
-- Mouse enter on the HUD area transitions from `minimized` to `collapsed`
+- Mouse enter on the HUD area transitions from `minimized` to `collapsed`; touch is handled by `useChromeVisibility` listeners
 - Clicking "Browse" expands to full channel browser; clicking "Close" minimizes
 - Auto-collapse after 15 seconds of idle in expanded state, then minimizes 2 seconds later
-- Scrub bar supports click-and-drag seeking via mousedown/mousemove/mouseup handlers (see `useProgress`)
+- Scrub bar supports click-and-drag seeking via mousedown/mousemove/mouseup, or touch-drag via touchstart/touchmove/touchend (see `useProgress`)
 - Progress polled from YouTube player every 500ms via the `useProgress` hook
 
 **Thumbnail validation:**
 The playlist strip probes YouTube thumbnails on load. If a thumbnail is 120x90px (YouTube's placeholder for unavailable videos) or fails to load, the video is hidden from the strip via a `badThumbs` Set.
 
 **CSS:** Styles for `.classic-hud`, `.hud-top-panel`, `.hud-content`, `.hud-left-panel`, `.hud-right-panel`, `.hud-channel-tile`, `.hud-bottom-panel`, etc. are in `src/app/globals.css`.
+
+### Touch Support (iPad/Tablet)
+
+Tablets (iPad and Android without "Mobile" token) route to the TV interface via `isMobileRequest()` in `src/lib/mobile-detect.ts`. Touch devices need special handling:
+
+#### Chrome Visibility with Touch (`useChromeVisibility`)
+- **Mouse/touch events**: `mousemove`, `touchstart`, and `touchmove` listeners all trigger `keepAlive()`, which sets `mouseActive=true` and resets the inactivity timer (default 2 500 ms).
+- **Channel banner**: shows on channel switch or initial load; auto-hides after `bannerMs` (default 4 000 ms). Triggered via `pingBanner()`.
+- **QR linger**: QR lingers 30 s after chrome hides; re-appears any time chrome becomes visible. Reconciliation is event-driven — no setState in effects.
+- **Touch chrome stay visible**: `@media (pointer: coarse)` in `globals.css` keeps minimized HUD at full opacity (not 0.85) on touch devices, since they can't "hover" to wake it.
+- `chromeVisible = mouseActive || showBanner`
+
+#### Touch Scrubbing in BottomPanel
+- `useProgress` hook exposes `handleTouchScrubStart` alongside `handleScrubStart`.
+- `<div onTouchStart={handleTouchScrubStart}>` on the progress bar fires the same `scrubFromClientX()` logic but using `TouchEvent.touches[0].clientX`.
+- Touch move/end listeners use `passive: true` for scroll performance.
+- The scrub bar supports both mouse and touch via `touch-none` class to prevent accidental scrolls during scrubbing.
+
+#### Touch-Sized Buttons (`pointer-coarse` variant)
+Throughout `ClassicHUD`, Tailwind's `pointer-coarse:` responsive variant scales up buttons and spacing for touch devices:
+- Control buttons: `pointer-coarse:w-11 pointer-coarse:h-11` (48px vs. 30px on desktop)
+- Icon sizes: `pointer-coarse:w-5 pointer-coarse:h-5` (20px vs. 14px)
+- Dividers: `pointer-coarse:h-7` (taller on touch)
+- Progress bar: `pointer-coarse:h-[6px]` (thicker), `pointer-coarse:active:h-2.5` (height increases on active)
+- Bottom panel spacing: `pointer-coarse:px-4 pointer-coarse:gap-4` (more padding)
 
 ### Minimal Remote (legacy default)
 

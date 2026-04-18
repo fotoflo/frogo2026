@@ -11,7 +11,7 @@ interface Props {
 }
 
 const ITEM_BASE =
-  "w-full text-left py-1.5 text-[13px] flex items-center gap-1.5 transition-colors min-[1600px]:py-2 min-[1600px]:text-sm min-[2000px]:text-base";
+  "w-full text-left py-1.5 text-[13px] flex items-center gap-1.5 transition-colors pointer-coarse:py-3 pointer-coarse:text-[15px] pointer-coarse:gap-2.5 active:bg-white/[0.06] min-[1600px]:py-2 min-[1600px]:text-sm min-[2000px]:text-base";
 
 export default function Directory({
   ancestors,
@@ -25,7 +25,7 @@ export default function Directory({
   );
 
   return (
-    <div className="hud-left-panel min-[1600px]:w-[220px] min-[2000px]:w-[260px]">
+    <div className="hud-left-panel pointer-coarse:w-[220px] min-[1600px]:w-[220px] min-[2000px]:w-[260px]">
       <h3 className="text-[10px] font-semibold text-white/40 px-3 pt-2.5 pb-1.5 tracking-[0.12em] uppercase min-[1600px]:text-xs min-[1600px]:px-4 min-[2000px]:text-sm">
         Directory
       </h3>

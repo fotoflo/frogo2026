@@ -9,6 +9,7 @@ export interface ProgressState {
   currentTime: number;
   duration: number;
   handleScrubStart: (e: React.MouseEvent) => void;
+  handleTouchScrubStart: (e: React.TouchEvent) => void;
 }
 
 export function useProgress(playerRef: React.RefObject<YTPlayer | null>): ProgressState {
@@ -31,12 +32,12 @@ export function useProgress(playerRef: React.RefObject<YTPlayer | null>): Progre
     return () => clearInterval(interval);
   }, [playerRef, isScrubbing]);
 
-  function scrubFromEvent(e: React.MouseEvent | MouseEvent) {
+  function scrubFromClientX(clientX: number) {
     const bar = barRef.current;
     const player = playerRef.current;
     if (!bar || !player?.seekTo || !player?.getDuration) return;
     const rect = bar.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const d = player.getDuration() ?? 0;
     setProgress(pct * 100);
     setCurrentTime(pct * d);
@@ -46,8 +47,8 @@ export function useProgress(playerRef: React.RefObject<YTPlayer | null>): Progre
   function handleScrubStart(e: React.MouseEvent) {
     e.preventDefault();
     setIsScrubbing(true);
-    scrubFromEvent(e);
-    function onMove(ev: MouseEvent) { scrubFromEvent(ev); }
+    scrubFromClientX(e.clientX);
+    function onMove(ev: MouseEvent) { scrubFromClientX(ev.clientX); }
     function onUp() {
       setIsScrubbing(false);
       window.removeEventListener("mousemove", onMove);
@@ -57,7 +58,27 @@ export function useProgress(playerRef: React.RefObject<YTPlayer | null>): Progre
     window.addEventListener("mouseup", onUp);
   }
 
-  return { barRef, progress, currentTime, duration, handleScrubStart };
+  function handleTouchScrubStart(e: React.TouchEvent) {
+    const first = e.touches[0];
+    if (!first) return;
+    setIsScrubbing(true);
+    scrubFromClientX(first.clientX);
+    function onMove(ev: TouchEvent) {
+      const t = ev.touches[0];
+      if (t) scrubFromClientX(t.clientX);
+    }
+    function onEnd() {
+      setIsScrubbing(false);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+      window.removeEventListener("touchcancel", onEnd);
+    }
+    window.addEventListener("touchmove", onMove, { passive: true });
+    window.addEventListener("touchend", onEnd);
+    window.addEventListener("touchcancel", onEnd);
+  }
+
+  return { barRef, progress, currentTime, duration, handleScrubStart, handleTouchScrubStart };
 }
 
 export function formatTime(seconds: number): string {

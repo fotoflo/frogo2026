@@ -36,7 +36,7 @@ function Tile({
     <button
       onClick={onClick}
       aria-current={isActive ? "true" : undefined}
-      className="group flex flex-col text-left"
+      className="group flex flex-col text-left active:scale-[0.98] transition-transform"
     >
       <div
         className={`aspect-video bg-black/50 relative rounded-md overflow-hidden ${
@@ -108,7 +108,7 @@ export default function SearchResults({
           <h3 className="text-[10px] font-semibold text-white/40 pb-2 tracking-[0.12em] uppercase min-[1600px]:text-xs">
             In this directory
           </h3>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 min-[1600px]:grid-cols-[repeat(auto-fill,minmax(190px,1fr))] min-[1600px]:gap-4 min-[2000px]:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] min-[2000px]:gap-5">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 pointer-coarse:grid-cols-[repeat(auto-fill,minmax(170px,1fr))] pointer-coarse:gap-4 min-[1600px]:grid-cols-[repeat(auto-fill,minmax(190px,1fr))] min-[1600px]:gap-4 min-[2000px]:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] min-[2000px]:gap-5">
             {local.map((ch) => (
               <Tile
                 key={ch.id}
@@ -126,7 +126,7 @@ export default function SearchResults({
           <h3 className="text-[10px] font-semibold text-white/40 pb-2 tracking-[0.12em] uppercase min-[1600px]:text-xs">
             Everywhere else
           </h3>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 min-[1600px]:grid-cols-[repeat(auto-fill,minmax(190px,1fr))] min-[1600px]:gap-4 min-[2000px]:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] min-[2000px]:gap-5">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 pointer-coarse:grid-cols-[repeat(auto-fill,minmax(170px,1fr))] pointer-coarse:gap-4 min-[1600px]:grid-cols-[repeat(auto-fill,minmax(190px,1fr))] min-[1600px]:gap-4 min-[2000px]:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] min-[2000px]:gap-5">
             {elsewhere.map((ch) => (
               <Tile
                 key={ch.id}

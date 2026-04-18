@@ -16,9 +16,9 @@ interface Props {
 }
 
 const CTRL_BTN =
-  "hud-ctrl-btn w-[30px] h-[30px] rounded-lg min-[1600px]:w-10 min-[1600px]:h-10 min-[2000px]:w-12 min-[2000px]:h-12";
+  "hud-ctrl-btn w-[30px] h-[30px] rounded-lg pointer-coarse:w-11 pointer-coarse:h-11 min-[1600px]:w-10 min-[1600px]:h-10 min-[2000px]:w-12 min-[2000px]:h-12 active:bg-white/10";
 const CTRL_SVG =
-  "w-3.5 h-3.5 min-[1600px]:w-5 min-[1600px]:h-5 min-[2000px]:w-6 min-[2000px]:h-6";
+  "w-3.5 h-3.5 pointer-coarse:w-5 pointer-coarse:h-5 min-[1600px]:w-5 min-[1600px]:h-5 min-[2000px]:w-6 min-[2000px]:h-6";
 
 export default function TopPanel({
   channel,
@@ -36,7 +36,7 @@ export default function TopPanel({
   const isExpanded = hudState === "expanded";
 
   return (
-    <div className="hud-top-panel h-9 px-3 min-[1600px]:h-12 min-[1600px]:px-[18px] min-[2000px]:h-14 min-[2000px]:px-[22px]">
+    <div className="hud-top-panel h-9 px-3 pointer-coarse:h-14 pointer-coarse:px-4 min-[1600px]:h-12 min-[1600px]:px-[18px] min-[2000px]:h-14 min-[2000px]:px-[22px]">
       <div className="flex items-center gap-3 min-w-0">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -107,12 +107,12 @@ export default function TopPanel({
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search channels"
             aria-label="Search channels"
-            className="bg-white/[0.06] text-white placeholder:text-white/30 rounded-md pl-7 pr-7 py-1 text-xs w-[170px] border border-white/5 focus:outline-none focus:border-accent/60 focus:bg-white/[0.09] transition-colors min-[1600px]:text-sm min-[1600px]:w-[220px] min-[1600px]:py-1.5 min-[1600px]:pl-8 min-[2000px]:text-base min-[2000px]:w-[280px]"
+            className="bg-white/[0.06] text-white placeholder:text-white/30 rounded-md pl-7 pr-7 py-1 text-xs w-[170px] border border-white/5 focus:outline-none focus:border-accent/60 focus:bg-white/[0.09] transition-colors pointer-coarse:text-base pointer-coarse:w-[220px] pointer-coarse:py-2.5 pointer-coarse:pl-9 min-[1600px]:text-sm min-[1600px]:w-[220px] min-[1600px]:py-1.5 min-[1600px]:pl-8 min-[2000px]:text-base min-[2000px]:w-[280px]"
           />
           {searchQuery && (
             <button
               onClick={() => onSearchChange("")}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70 transition-colors pointer-coarse:p-2 pointer-coarse:right-0.5 active:text-white/90"
               aria-label="Clear search"
             >
               <svg width="14" height="14" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
@@ -139,7 +139,7 @@ export default function TopPanel({
           onClick={onToggleHUD}
           aria-expanded={isExpanded}
           aria-label={isExpanded ? "Close channel guide" : "Browse channels"}
-          className="text-xs text-white/40 hover:text-white/80 transition-colors px-2 py-1 min-[1600px]:text-sm min-[1600px]:px-3 min-[1600px]:py-1.5 min-[2000px]:text-base min-[2000px]:px-4 min-[2000px]:py-2 flex items-center"
+          className="text-xs text-white/40 hover:text-white/80 transition-colors px-2 py-1 pointer-coarse:text-base pointer-coarse:px-4 pointer-coarse:py-2.5 pointer-coarse:min-h-11 min-[1600px]:text-sm min-[1600px]:px-3 min-[1600px]:py-1.5 min-[2000px]:text-base min-[2000px]:px-4 min-[2000px]:py-2 flex items-center active:text-white/90"
         >
           {isExpanded ? (
             <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden="true" className="w-3.5 h-3.5 min-[1600px]:w-4 min-[1600px]:h-4 min-[2000px]:w-5 min-[2000px]:h-5">

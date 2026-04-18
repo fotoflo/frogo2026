@@ -6,12 +6,16 @@ Mobile users get a distinct browsing-first experience — they can watch videos 
 
 ## Key Files
 
-- `src/lib/mobile-detect.ts` — UA detection helper used by server components
+- `src/lib/mobile-detect.ts` — UA detection helper used by server components; tablets route to TV interface
 - `src/app/mobile/page.tsx` — Mobile channel browser (browse-first landing)
 - `src/app/mobile/channel/[slug]/page.tsx` — Channel playlist view on mobile
 - `src/app/mobile/watch/[slug]/[videoId]/page.tsx` — Mobile video watch page (server)
 - `src/app/mobile/watch/[slug]/[videoId]/MobileWatchClient.tsx` — Mobile video player (client)
 - `src/components/YouTubePlayer.tsx` — Shared YouTube player; `controls` and `muted` props control behavior
+
+## Tablet Routing Logic
+
+Tablets (`iPad` or Android devices without `Mobile` UA token) route to the TV interface, not `/mobile`. Modern iPadOS reports as `MacIntel` by default, so legacy iPads with the `iPad` token are still routed to TV mode. This gives tablet users the full broadcast experience with the full-sized HUD.
 
 ## Data Flow
 
@@ -25,7 +29,9 @@ Request arrives at /, /watch/[slug], /watch/[slug]/[videoId], /channel/[slug]
     ▼
 isMobileRequest() reads User-Agent header (server-side, no JS needed)
     │
-    ├── Mobile UA → redirect to /mobile equivalent
+    ├── Tablet UA (iPad or Android without Mobile) → TV mode (no redirect)
+    │
+    ├── Phone UA → redirect to /mobile equivalent
     │       /  →  /mobile
     │       /watch/[slug]  →  /mobile/channel/[slug]
     │       /watch/[slug]/[videoId]  →  /mobile/watch/[slug]/[videoId]
@@ -55,7 +61,7 @@ MobileWatchClient  →  YouTubePlayer (controls=true, muted=false)
 
 ### UA Detection
 
-`isMobileRequest()` in `src/lib/mobile-detect.ts` reads the `User-Agent` header via Next.js `headers()`. It matches: `Android`, `iPhone`, `iPad`, `iPod`, `webOS`, `BlackBerry`, `Opera Mini`, `IEMobile`.
+`isMobileRequest()` in `src/lib/mobile-detect.ts` reads the `User-Agent` header via Next.js `headers()`. Tablets are filtered first — `iPad` or Android without `Mobile` token return `false` (TV mode). Then it checks for: `Android`, `iPhone`, `iPod`, `webOS`, `BlackBerry`, `Opera Mini`, `IEMobile`.
 
 The function is async (required because `headers()` is async in Next.js 15+) and is called at the top of each affected server component before any database queries, so mobile users never pay the cost of fetching TV data they won't use.
 

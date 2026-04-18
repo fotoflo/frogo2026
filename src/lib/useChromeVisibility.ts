@@ -73,9 +73,15 @@ export function useChromeVisibility(
         reconcileQr();
       }, mouseInactiveMs);
     }
+    // Touch devices never fire mousemove — tapping or dragging must also
+    // keep chrome alive, otherwise iPad users can't summon the HUD back.
     window.addEventListener("mousemove", keepAlive);
+    window.addEventListener("touchstart", keepAlive, { passive: true });
+    window.addEventListener("touchmove", keepAlive, { passive: true });
     return () => {
       window.removeEventListener("mousemove", keepAlive);
+      window.removeEventListener("touchstart", keepAlive);
+      window.removeEventListener("touchmove", keepAlive);
       if (mouseTimeoutRef.current) clearTimeout(mouseTimeoutRef.current);
     };
   }, [mouseInactiveMs, reconcileQr]);

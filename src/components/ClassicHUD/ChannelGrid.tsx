@@ -17,7 +17,7 @@ export default function ChannelGrid({
 }: Props) {
   return (
     <div className="hud-right-panel">
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 p-3 min-[1600px]:grid-cols-[repeat(auto-fill,minmax(190px,1fr))] min-[1600px]:gap-4 min-[1600px]:p-4 min-[2000px]:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] min-[2000px]:gap-5 min-[2000px]:p-5">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3 p-3 pointer-coarse:grid-cols-[repeat(auto-fill,minmax(170px,1fr))] pointer-coarse:gap-4 pointer-coarse:p-4 min-[1600px]:grid-cols-[repeat(auto-fill,minmax(190px,1fr))] min-[1600px]:gap-4 min-[1600px]:p-4 min-[2000px]:grid-cols-[repeat(auto-fill,minmax(230px,1fr))] min-[2000px]:gap-5 min-[2000px]:p-5">
         {siblings
           .filter((ch) =>
             ch.videos.length > 0 ||
@@ -39,11 +39,11 @@ export default function ChannelGrid({
               onClick={() => onSwitchChannel(ch.id)}
               aria-label={`Switch to ${ch.name}${isPlaying ? " (currently playing)" : ""}${isFolder ? " (contains sub-channels)" : ""}`}
               aria-current={isPlaying ? "true" : undefined}
-              className="hud-channel-tile group flex flex-col"
+              className="hud-channel-tile group flex flex-col active:scale-[0.98] transition-transform"
             >
               <div
                 className={`hud-channel-thumb aspect-video bg-black/50 relative rounded-md overflow-hidden ${
-                  isPlaying ? "ring-2 ring-accent" : "ring-1 ring-white/5"
+                  isPlaying ? "ring-2 ring-accent" : "ring-1 ring-white/5 pointer-coarse:ring-white/15 group-active:ring-white/40"
                 }`}
               >
                 {firstVideo ? (

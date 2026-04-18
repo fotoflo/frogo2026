@@ -192,6 +192,12 @@ body {
 .classic-hud.minimized:hover {
   opacity: 1;
 }
+/* Touch devices can't "hover" to wake the HUD — keep it fully visible. */
+@media (pointer: coarse) {
+  .classic-hud.minimized {
+    opacity: 1;
+  }
+}
 
 /* Top panel — sizing lives inline with Tailwind */
 .hud-top-panel {
