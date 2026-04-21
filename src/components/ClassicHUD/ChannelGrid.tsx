@@ -7,6 +7,7 @@ interface Props {
   siblings: Channel[];
   allChannels: Channel[];
   onSwitchChannel: (channelId: string) => void;
+  onNavigateToScope: (channelId: string) => void;
 }
 
 export default function ChannelGrid({
@@ -14,6 +15,7 @@ export default function ChannelGrid({
   siblings,
   allChannels,
   onSwitchChannel,
+  onNavigateToScope,
 }: Props) {
   return (
     <div className="hud-right-panel">
@@ -36,8 +38,14 @@ export default function ChannelGrid({
           return (
             <button
               key={ch.id}
-              onClick={() => onSwitchChannel(ch.id)}
-              aria-label={`Switch to ${ch.name}${isPlaying ? " (currently playing)" : ""}${isFolder ? " (contains sub-channels)" : ""}`}
+              onClick={() =>
+                isFolder ? onNavigateToScope(ch.id) : onSwitchChannel(ch.id)
+              }
+              aria-label={
+                isFolder
+                  ? `Open ${ch.name} folder`
+                  : `Switch to ${ch.name}${isPlaying ? " (currently playing)" : ""}`
+              }
               aria-current={isPlaying ? "true" : undefined}
               className="hud-channel-tile group flex flex-col active:scale-[0.98] transition-transform"
             >

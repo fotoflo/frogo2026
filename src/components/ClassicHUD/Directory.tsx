@@ -73,7 +73,7 @@ export default function Directory({
           return (
             <button
               key={f.id}
-              onClick={() => onSwitchChannel(f.id)}
+              onClick={() => onNavigateToScope(f.id)}
               className={`${ITEM_BASE} truncate text-white/45 hover:text-white/90 hover:bg-white/[0.03]`}
               style={{
                 paddingLeft: `${12 + depth * 10}px`,

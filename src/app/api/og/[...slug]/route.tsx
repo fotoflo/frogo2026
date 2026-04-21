@@ -4,7 +4,7 @@ import sharp from "sharp";
 
 // This is a Route Handler (not the Next metadata opengraph-image convention)
 // because catch-all segments can't host opengraph-image.tsx. generateMetadata
-// in /watch/[...slug]/page.tsx points openGraph.images at /api/og/<path>.
+// in /[...slug]/page.tsx points openGraph.images at /api/og/<path>.
 export const runtime = "nodejs";
 export const revalidate = 300;
 

@@ -9,6 +9,7 @@ import {
   findChannelByPath,
   type ChannelLike,
 } from "@/lib/channel-paths";
+import { isReservedSlug } from "@/lib/reserved-slugs";
 
 interface Args {
   name?: string;
@@ -82,6 +83,9 @@ export const createChannel = defineTool<Args>({
 
     const slug = args.slug ? slugify(args.slug) : slugify(name);
     if (!slug) throw new Error("Could not derive a valid slug from the name");
+    if (isReservedSlug(slug)) {
+      throw new Error(`Slug "${slug}" is reserved`);
+    }
 
     const icon = (args.icon ?? "").trim() || "📺";
     const description = (args.description ?? "").trim();

@@ -122,6 +122,26 @@ export function hasChildren<C extends ChannelLike>(
 }
 
 /**
+ * Walk down the first child (preserving `allChannels` order — callers should
+ * sort by position before passing) until a leaf is reached, and return it.
+ * Returns `channel` itself if it has no children. Cycle-safe (32 hop cap).
+ */
+export function firstLeafDescendant<C extends ChannelLike>(
+  channel: C,
+  allChannels: readonly C[]
+): C {
+  let current = channel;
+  const seen = new Set<string>([current.id]);
+  for (let hops = 0; hops < 32; hops++) {
+    const firstChild = allChannels.find((c) => c.parent_id === current.id);
+    if (!firstChild || seen.has(firstChild.id)) return current;
+    seen.add(firstChild.id);
+    current = firstChild;
+  }
+  return current;
+}
+
+/**
  * Return the set of channel ids that are descendants of `channelId`
  * (including itself). Used by the admin parent picker to prevent cycles —
  * a channel can't become a descendant of itself.
@@ -157,7 +177,7 @@ export function watchHref<C extends ChannelLike>(
   channel: C,
   allChannels: readonly C[]
 ): string {
-  return `/watch/${joinPath(buildChannelPath(channel, allChannels))}`;
+  return `/${joinPath(buildChannelPath(channel, allChannels))}`;
 }
 
 export function channelHref<C extends ChannelLike>(

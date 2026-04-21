@@ -20,28 +20,8 @@ import { useChannelNav } from "@/lib/useChannelNav";
 import { readInitialResume, useWatchProgress } from "@/lib/useWatchProgress";
 import { useWatchHistory } from "@/lib/useWatchHistory";
 import TVOverlays from "./TVOverlays";
-
-interface Video {
-  id: string;
-  youtube_id: string;
-  title: string;
-  description?: string;
-  duration_seconds: number;
-  start_seconds?: number | null;
-  end_seconds?: number | null;
-  thumbnail_url?: string;
-  made_for_kids?: boolean;
-}
-
-interface ChannelData {
-  id: string;
-  slug: string;
-  parent_id: string | null;
-  path: string[];
-  name: string;
-  icon: string;
-  videos: Video[];
-}
+import OnboardingOverlay from "@/components/OnboardingOverlay";
+import type { ChannelData } from "./types";
 
 interface TVClientProps {
   channels: ChannelData[];
@@ -106,7 +86,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
     onPlayerReady();
   }, [onPlayerReady]);
 
-  const basePath = useMemo(() => `/watch/${channel.path.join("/")}`, [channel.path]);
+  const basePath = useMemo(() => `/${channel.path.join("/")}`, [channel.path]);
   const { commitSeen, commitSkip } = useWatchProgress({
     channelId: channel.id,
     videoId: activeVideo?.id ?? null,
@@ -308,6 +288,8 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
           </div>
         )
       )}
+
+      <OnboardingOverlay channels={channels} />
     </div>
   );
 }

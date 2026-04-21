@@ -1,32 +1,54 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createServiceClient } from "@/lib/supabase";
 import { isMobileRequest } from "@/lib/mobile-detect";
-import { watchHref } from "@/lib/channel-paths";
+import { getAllChannelData } from "@/lib/channel-data";
+import { firstLeafDescendant } from "@/lib/channel-paths";
+import TVClient from "@/app/[...slug]/TVClient";
+
+export const metadata: Metadata = {
+  title: "Frogo.tv — Curated channels, always on",
+  description:
+    "Hand-picked channels looping around the clock. Pair your phone as a remote.",
+  openGraph: {
+    title: "Frogo.tv — Curated channels, always on",
+    description:
+      "Hand-picked channels looping around the clock. Pair your phone as a remote.",
+    siteName: "Frogo.tv",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Frogo.tv — Curated channels, always on",
+    description:
+      "Hand-picked channels looping around the clock. Pair your phone as a remote.",
+  },
+};
 
 export default async function Home() {
   if (await isMobileRequest()) {
     redirect("/mobile");
   }
 
-  const supabase = createServiceClient();
+  const data = await getAllChannelData([]);
 
-  // Get top-level channels ordered by position, pick the first
-  const { data: channels } = await supabase
-    .from("channels")
-    .select("id, slug, parent_id")
-    .order("position", { ascending: true, nullsFirst: false })
-    .order("name");
-
-  const first = channels?.find((c) => c.parent_id === null) ?? channels?.[0];
-
-  if (first && channels) {
-    redirect(watchHref(first, channels));
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center h-screen text-muted">
+        No channels yet.
+      </div>
+    );
   }
 
-  // Fallback if no channels exist
+  const initial = data.channels[data.initialIndex];
+  const leaf = firstLeafDescendant(initial, data.channels);
+  if (leaf.id !== initial.id) {
+    redirect(`/${leaf.path.join("/")}`);
+  }
+
   return (
-    <div className="flex items-center justify-center h-screen text-muted">
-      No channels yet.
-    </div>
+    <TVClient
+      channels={data.channels}
+      initialChannelIndex={data.initialIndex}
+    />
   );
 }

@@ -104,7 +104,7 @@ export default async function NewChannelPage({
           </select>
           <p className="text-xs text-neutral-500 mt-1">
             Nest this channel under another. Its URL becomes{" "}
-            <code>/watch/parent/child</code>.
+            <code>/parent/child</code>.
           </p>
         </div>
 

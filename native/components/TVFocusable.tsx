@@ -35,7 +35,7 @@ export default function TVFocusable({
         style,
         focused && (focusStyle ?? styles.defaultFocus),
       ]}
-      // @ts-ignore — hasTVPreferredFocus exists on tvOS
+      // @ts-expect-error — hasTVPreferredFocus exists on tvOS only
       hasTVPreferredFocus={false}
     >
       {children}

@@ -113,7 +113,7 @@ interface Options {
   channelId: string;
   videoId: string | null;
   videoTitle: string;
-  /** Base pathname (without query) to keep on the URL, e.g. /watch/foo/bar. */
+  /** Base pathname (without query) to keep on the URL, e.g. /foo/bar. */
   basePath: string;
   playerRef: React.RefObject<YTPlayer | null>;
 }

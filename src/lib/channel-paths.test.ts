@@ -81,8 +81,8 @@ describe("descendantIds", () => {
 });
 
 describe("watchHref", () => {
-  it("builds /watch/a/b", () => {
-    expect(watchHref(channels[1], channels)).toBe("/watch/business/startups");
+  it("builds /a/b", () => {
+    expect(watchHref(channels[1], channels)).toBe("/business/startups");
   });
 });
 

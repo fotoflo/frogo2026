@@ -13,7 +13,7 @@ export default function ShareButton({ state }: ShareButtonProps) {
 
   async function handleShare() {
     const seconds = Math.floor(playbackPosition);
-    const url = `${window.location.origin}/watch/${channel!.slug}?v=${video!.youtube_id}&t=${seconds}`;
+    const url = `${window.location.origin}/${channel!.slug}?v=${video!.youtube_id}&t=${seconds}`;
     const text = `${video!.title} on ${channel!.icon} ${channel!.name}`;
 
     if (navigator.share) {

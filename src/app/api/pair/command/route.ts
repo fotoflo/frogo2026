@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   const now = new Date().toISOString();
 
-  const updates: Record<string, any> = {
+  const updates: Record<string, string> = {
     last_command: command,
     last_command_at: now,
   };

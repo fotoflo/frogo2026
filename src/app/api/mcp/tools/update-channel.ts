@@ -10,6 +10,7 @@ import {
   findChannelByPath,
   type ChannelLike,
 } from "@/lib/channel-paths";
+import { isReservedSlug } from "@/lib/reserved-slugs";
 
 interface Args {
   id?: string;
@@ -76,6 +77,9 @@ export const updateChannel = defineTool<Args>({
     if (args.slug !== undefined) {
       const slug = slugify(args.slug);
       if (!slug) throw new Error("Could not derive a valid slug");
+      if (isReservedSlug(slug)) {
+        throw new Error(`Slug "${slug}" is reserved`);
+      }
       update.slug = slug;
     }
 

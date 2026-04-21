@@ -12,19 +12,14 @@ interface NowPlayingCardProps {
 
 export default function NowPlayingCard({ state, isFavorite, onToggleFavorite }: NowPlayingCardProps) {
   const { video, channel, playbackState, playbackPosition } = state;
-  const [remaining, setRemaining] = useState(0);
+  const [countdownOffset, setCountdownOffset] = useState(0);
 
-  // Countdown timer
-  useEffect(() => {
-    if (!video) return;
-    const total = video.duration_seconds;
-    setRemaining(Math.max(0, total - playbackPosition));
-  }, [video, playbackPosition]);
+  const remaining = video ? Math.max(0, video.duration_seconds - playbackPosition - countdownOffset) : 0;
 
   useEffect(() => {
     if (playbackState !== "playing" || remaining <= 0) return;
     const interval = setInterval(() => {
-      setRemaining((r) => Math.max(0, r - 1));
+      setCountdownOffset((o) => o + 1);
     }, 1000);
     return () => clearInterval(interval);
   }, [playbackState, remaining]);

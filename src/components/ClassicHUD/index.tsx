@@ -152,6 +152,7 @@ export default function ClassicHUD({
                 siblings={siblings}
                 allChannels={allChannels}
                 onSwitchChannel={onSwitchChannel}
+                onNavigateToScope={onNavigateToScope}
               />
             </>
           )}
