@@ -4,6 +4,7 @@
  */
 import { defineTool } from "../lib/tool";
 import { requireOwnership, textContent } from "../lib/shared";
+import { invalidateChannelData } from "@/lib/channel-cache";
 
 interface Args {
   youtube_id: string;
@@ -42,6 +43,8 @@ export const deleteVideo = defineTool<Args>({
       .delete()
       .eq("id", video.id);
     if (delErr) throw new Error(delErr.message);
+
+    invalidateChannelData();
 
     return textContent(`Deleted "${video.title}".`);
   },

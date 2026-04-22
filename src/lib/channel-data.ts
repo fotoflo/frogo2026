@@ -1,9 +1,6 @@
-import { createServiceClient } from "@/lib/supabase";
-import { filterAvailableVideos } from "@/lib/youtube-check";
-import {
-  buildChannelPath,
-  findChannelByPath,
-} from "@/lib/channel-paths";
+import { buildChannelPath, findChannelByPath } from "@/lib/channel-paths";
+import { getChannelTree, type ChannelNode } from "@/lib/channel-tree";
+import { getChannelVideos, type CachedVideo } from "@/lib/channel-videos";
 
 export interface ChannelWithVideos {
   id: string;
@@ -13,61 +10,45 @@ export interface ChannelWithVideos {
   name: string;
   icon: string;
   description: string;
-  videos: {
-    id: string;
-    youtube_id: string;
-    title: string;
-    description: string;
-    duration_seconds: number;
-    start_seconds: number | null;
-    end_seconds: number | null;
-    thumbnail_url: string;
-  }[];
+  videos: CachedVideo[];
 }
 
+function toChannelWithVideos(
+  node: ChannelNode,
+  tree: ChannelNode[],
+  videos: CachedVideo[]
+): ChannelWithVideos {
+  return {
+    id: node.id,
+    slug: node.slug,
+    parent_id: node.parent_id,
+    path: buildChannelPath(node, tree),
+    name: node.name,
+    icon: node.icon,
+    description: node.description,
+    videos,
+  };
+}
+
+// Reads the cached tree, resolves the target channel, then fetches videos for
+// every channel in parallel — but each per-channel fetch hits unstable_cache,
+// so warm channels return in ~10ms and only the first render of each one pays
+// the oEmbed cost.
 export async function getAllChannelData(pathSegments: string[]) {
-  const supabase = createServiceClient();
+  const tree = await getChannelTree();
+  if (!tree.length) return null;
 
-  const { data: allChannels } = await supabase
-    .from("channels")
-    .select("*")
-    .order("position", { ascending: true, nullsFirst: false })
-    .order("name");
-
-  if (!allChannels?.length) return null;
-
-  // Resolve the requested path segments to a concrete channel
-  // If pathSegments is empty, use the first root-level channel
-  let initialChannel = null;
-  if (pathSegments.length === 0) {
-    initialChannel = allChannels.find((c) => c.parent_id === null);
-  } else {
-    initialChannel = findChannelByPath(pathSegments, allChannels);
-  }
+  const initialChannel =
+    pathSegments.length === 0
+      ? tree.find((c) => c.parent_id === null)
+      : findChannelByPath(pathSegments, tree);
 
   if (!initialChannel) return null;
 
-  // Fetch videos for all channels in parallel
-  const channelsWithVideos: ChannelWithVideos[] = await Promise.all(
-    allChannels.map(async (channel) => {
-      const { data: videos } = await supabase
-        .from("videos")
-        .select("*")
-        .eq("channel_id", channel.id)
-        .order("position");
-
-      const available = await filterAvailableVideos(videos ?? []);
-
-      return {
-        id: channel.id,
-        slug: channel.slug,
-        parent_id: channel.parent_id,
-        path: buildChannelPath(channel, allChannels),
-        name: channel.name,
-        icon: channel.icon,
-        description: channel.description,
-        videos: available as ChannelWithVideos["videos"],
-      };
+  const channelsWithVideos = await Promise.all(
+    tree.map(async (node) => {
+      const videos = await getChannelVideos(node.id);
+      return toChannelWithVideos(node, tree, videos);
     })
   );
 

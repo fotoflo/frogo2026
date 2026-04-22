@@ -5,6 +5,7 @@
 import { defineTool } from "../lib/tool";
 import { requireOwnership, textContent } from "../lib/shared";
 import { extractYouTubeId, fetchVideoMetadata } from "@/lib/youtube-api";
+import { invalidateChannelData } from "@/lib/channel-cache";
 
 interface Args {
   channel_id: string;
@@ -71,6 +72,8 @@ export const addVideo = defineTool<Args>({
       .select("id, title, position")
       .single();
     if (error) throw new Error(error.message);
+
+    invalidateChannelData();
 
     return textContent(
       `Added "${data.title}" at position ${data.position} (video id ${data.id}).`

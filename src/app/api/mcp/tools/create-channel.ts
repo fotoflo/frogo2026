@@ -10,6 +10,7 @@ import {
   type ChannelLike,
 } from "@/lib/channel-paths";
 import { isReservedSlug } from "@/lib/reserved-slugs";
+import { invalidateChannelData } from "@/lib/channel-cache";
 
 interface Args {
   name?: string;
@@ -119,6 +120,8 @@ export const createChannel = defineTool<Args>({
       data as ChannelLike,
       allOwned as unknown as ChannelLike[]
     ).join("/");
+
+    invalidateChannelData();
 
     return jsonContent({
       id: data.id,

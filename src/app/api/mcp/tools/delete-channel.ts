@@ -5,6 +5,7 @@
  */
 import { defineTool } from "../lib/tool";
 import { ownedChannels, textContent } from "../lib/shared";
+import { invalidateChannelData } from "@/lib/channel-cache";
 
 interface Args {
   id?: string;
@@ -54,6 +55,8 @@ export const deleteChannel = defineTool<Args>({
       .eq("id", target.id)
       .eq("owner_id", auth.userId);
     if (error) throw new Error(error.message);
+
+    invalidateChannelData();
 
     const promoted = children.length;
     return textContent(

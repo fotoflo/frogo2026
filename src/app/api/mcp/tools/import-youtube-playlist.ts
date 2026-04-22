@@ -7,6 +7,7 @@
 import { defineTool } from "../lib/tool";
 import { jsonContent, requireOwnership } from "../lib/shared";
 import { extractPlaylistId, fetchPlaylistVideos } from "@/lib/youtube-api";
+import { invalidateChannelData } from "@/lib/channel-cache";
 
 interface Args {
   channel_id: string;
@@ -125,6 +126,8 @@ export const importYoutubePlaylist = defineTool<Args>({
       });
       nextPosition++;
     }
+
+    invalidateChannelData();
 
     return jsonContent({
       playlist_id: playlistId,

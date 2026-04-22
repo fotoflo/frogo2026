@@ -5,6 +5,7 @@
  */
 import { defineTool } from "../lib/tool";
 import { jsonContent, requireOwnership } from "../lib/shared";
+import { invalidateChannelData } from "@/lib/channel-cache";
 
 interface Args {
   youtube_id: string;
@@ -79,6 +80,8 @@ export const updateVideo = defineTool<Args>({
       )
       .single();
     if (upErr) throw new Error(upErr.message);
+
+    invalidateChannelData();
 
     return jsonContent(updated);
   },

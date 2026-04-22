@@ -5,6 +5,7 @@
  */
 import { defineTool } from "../lib/tool";
 import { requireOwnership, textContent } from "../lib/shared";
+import { invalidateChannelData } from "@/lib/channel-cache";
 
 interface Args {
   channel_id: string;
@@ -69,6 +70,8 @@ export const reorderVideos = defineTool<Args>({
     const results = await Promise.all(updates);
     const firstErr = results.find((r) => r.error)?.error;
     if (firstErr) throw new Error(firstErr.message);
+
+    invalidateChannelData();
 
     return textContent(
       `Reordered ${finalOrder.length} video${finalOrder.length === 1 ? "" : "s"}.`

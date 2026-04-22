@@ -4,6 +4,7 @@
  */
 import { defineTool } from "../lib/tool";
 import { jsonContent, requireOwnership } from "../lib/shared";
+import { invalidateChannelData } from "@/lib/channel-cache";
 
 interface Args {
   channel_id: string;
@@ -56,6 +57,8 @@ export const deleteVideosBulk = defineTool<Args>({
 
     const { data, error } = await query.select("id");
     if (error) throw new Error(error.message);
+
+    invalidateChannelData();
 
     return jsonContent({
       channel_id: args.channel_id,

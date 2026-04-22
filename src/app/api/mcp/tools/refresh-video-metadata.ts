@@ -6,6 +6,7 @@
 import { defineTool } from "../lib/tool";
 import { jsonContent, requireOwnership } from "../lib/shared";
 import { fetchVideoMetadataBatch } from "@/lib/youtube-api";
+import { invalidateChannelData } from "@/lib/channel-cache";
 
 interface Args {
   youtube_id?: string;
@@ -149,6 +150,8 @@ export const refreshVideoMetadata = defineTool<Args>({
         new_duration_seconds: meta.durationSeconds,
       });
     }
+
+    invalidateChannelData();
 
     return jsonContent({
       refreshed,

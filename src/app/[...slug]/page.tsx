@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { createServiceClient } from "@/lib/supabase";
 import { isMobileRequest } from "@/lib/mobile-detect";
 import {
   findChannelByPath,
   firstLeafDescendant,
   mobileChannelHref,
 } from "@/lib/channel-paths";
+import { getChannelTree } from "@/lib/channel-tree";
 import { getAllChannelData } from "@/lib/channel-data";
 import TVClient from "./TVClient";
 
@@ -16,13 +16,8 @@ export async function generateMetadata({
   params: Promise<{ slug: string[] }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const supabase = createServiceClient();
-  const { data: allChannels } = await supabase
-    .from("channels")
-    .select("id, slug, parent_id, name, icon, description");
-  const channel = allChannels
-    ? findChannelByPath(slug, allChannels)
-    : null;
+  const tree = await getChannelTree();
+  const channel = findChannelByPath(slug, tree);
 
   if (!channel) return {};
 
@@ -64,14 +59,9 @@ export default async function WatchChannelPage({
 }) {
   const { slug } = await params;
   if (await isMobileRequest()) {
-    const supabase = createServiceClient();
-    const { data: allChannels } = await supabase
-      .from("channels")
-      .select("id, slug, parent_id");
-    const channel = allChannels
-      ? findChannelByPath(slug, allChannels)
-      : null;
-    if (channel) redirect(mobileChannelHref(channel, allChannels!));
+    const tree = await getChannelTree();
+    const channel = findChannelByPath(slug, tree);
+    if (channel) redirect(mobileChannelHref(channel, tree));
   }
   const data = await getAllChannelData(slug);
   if (!data) notFound();

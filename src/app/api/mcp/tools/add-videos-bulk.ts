@@ -8,6 +8,7 @@
 import { defineTool } from "../lib/tool";
 import { jsonContent, requireOwnership } from "../lib/shared";
 import { extractYouTubeId, fetchVideoMetadataBatch } from "@/lib/youtube-api";
+import { invalidateChannelData } from "@/lib/channel-cache";
 
 interface Args {
   channel_id: string;
@@ -144,6 +145,8 @@ export const addVideosBulk = defineTool<Args>({
       });
       nextPosition += 1;
     }
+
+    invalidateChannelData();
 
     return jsonContent({
       added,

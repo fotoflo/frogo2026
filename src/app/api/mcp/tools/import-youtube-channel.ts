@@ -8,6 +8,7 @@
 import { defineTool } from "../lib/tool";
 import { jsonContent, requireOwnership } from "../lib/shared";
 import { fetchChannelVideos } from "@/lib/youtube-api";
+import { invalidateChannelData } from "@/lib/channel-cache";
 
 interface Args {
   channel_id: string;
@@ -121,6 +122,8 @@ export const importYoutubeChannel = defineTool<Args>({
       });
       nextPosition++;
     }
+
+    invalidateChannelData();
 
     return jsonContent({
       source: args.source,

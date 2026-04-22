@@ -30,10 +30,17 @@ export default function OnboardingOverlay({ channels }: OnboardingOverlayProps) 
   useEffect(() => {
     let cancelled = false;
     let shouldShow = true;
+    // ?onboarding or ?welcome forces the overlay regardless of localStorage —
+    // handy for iterating on the overlay without clearing storage each time.
+    const forced =
+      typeof window !== "undefined" &&
+      (() => {
+        const p = new URLSearchParams(window.location.search);
+        return p.has("onboarding") || p.has("welcome");
+      })();
     try {
-      shouldShow = localStorage.getItem(STORAGE_KEY) !== "1";
+      shouldShow = forced || localStorage.getItem(STORAGE_KEY) !== "1";
     } catch {
-      // localStorage blocked — show once per session.
       shouldShow = true;
     }
     queueMicrotask(() => {
