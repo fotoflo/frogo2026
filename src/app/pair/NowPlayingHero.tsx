@@ -13,16 +13,18 @@ interface NowPlayingHeroProps {
 
 export default function NowPlayingHero({ state, isFavorite, onToggleFavorite }: NowPlayingHeroProps) {
   const { video, channel, playbackState, playbackPosition } = state;
-  const [remaining, setRemaining] = useState(0);
-
   const baseRemaining = useMemo(
     () => (video ? Math.max(0, video.duration_seconds - playbackPosition) : 0),
     [video, playbackPosition]
   );
 
-  useEffect(() => {
+  // Reset the countdown whenever the TV reports a new position.
+  const [remaining, setRemaining] = useState(baseRemaining);
+  const [prevBaseRemaining, setPrevBaseRemaining] = useState(baseRemaining);
+  if (prevBaseRemaining !== baseRemaining) {
+    setPrevBaseRemaining(baseRemaining);
     setRemaining(baseRemaining);
-  }, [baseRemaining]);
+  }
 
   useEffect(() => {
     if (playbackState !== "playing" || remaining <= 0) return;

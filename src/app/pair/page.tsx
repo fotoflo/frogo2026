@@ -86,6 +86,7 @@ function PairContent() {
   // Auto-pair from QR code
   useEffect(() => {
     if (initialCode && initialCode.length === 4) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       doPair(initialCode);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
