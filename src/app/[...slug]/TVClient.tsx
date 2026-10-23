@@ -78,7 +78,8 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
   const viewersMapTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
   const prevViewerCountRef = useRef(0);
 
-  const { autoplay, onPlayerReady, handleScreenClick } = useAutoplay(playerRef);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const { autoplay, onPlayerReady, handleScreenClick, unlockAudio } = useAutoplay(playerRef, onboardingOpen);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleReady = useCallback((player: any) => {
@@ -289,7 +290,7 @@ export default function TVClient({ channels, initialChannelIndex }: TVClientProp
         )
       )}
 
-      <OnboardingOverlay channels={channels} />
+      <OnboardingOverlay channels={channels} onOpenChange={setOnboardingOpen} onDismiss={unlockAudio} />
     </div>
   );
 }

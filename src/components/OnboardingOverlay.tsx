@@ -16,11 +16,20 @@ interface OnboardingChannel {
 
 interface OnboardingOverlayProps {
   channels: OnboardingChannel[];
+  // Lets the TV hold off unmuting while the overlay is up.
+  onOpenChange?: (open: boolean) => void;
+  // Called from the dismissing click/keypress — a user gesture, so the TV
+  // can unmute here.
+  onDismiss?: () => void;
 }
 
 const STORAGE_KEY = "frogo_onboarded";
 
-export default function OnboardingOverlay({ channels }: OnboardingOverlayProps) {
+export default function OnboardingOverlay({
+  channels,
+  onOpenChange,
+  onDismiss,
+}: OnboardingOverlayProps) {
   const router = useRouter();
   const [visible, setVisible] = useState(false);
 
@@ -44,11 +53,16 @@ export default function OnboardingOverlay({ channels }: OnboardingOverlayProps) 
       shouldShow = true;
     }
     queueMicrotask(() => {
-      if (!cancelled && shouldShow) setVisible(true);
+      if (!cancelled && shouldShow) {
+        setVisible(true);
+        onOpenChange?.(true);
+      }
     });
     return () => {
       cancelled = true;
     };
+  // Mount-only: the overlay decides once per page load whether to show.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const dismiss = useCallback(() => {
@@ -58,7 +72,9 @@ export default function OnboardingOverlay({ channels }: OnboardingOverlayProps) 
       // ignore — still hide the overlay.
     }
     setVisible(false);
-  }, []);
+    onOpenChange?.(false);
+    onDismiss?.();
+  }, [onOpenChange, onDismiss]);
 
   const goTo = useCallback(
     (channel: OnboardingChannel) => {
@@ -89,21 +105,22 @@ export default function OnboardingOverlay({ channels }: OnboardingOverlayProps) 
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm overflow-y-auto"
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex flex-col"
       role="dialog"
       aria-modal="true"
       aria-labelledby="onboarding-title"
     >
-      <div className="min-h-full flex flex-col">
-        <div className="mx-auto w-full max-w-6xl px-6 py-10 sm:px-10 sm:py-14 md:py-16 flex-1">
+      {/* Scrollable content — capped at viewport height by the flex-1 parent */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="mx-auto w-full max-w-6xl px-6 py-8 sm:px-10 sm:py-10 md:py-12">
           {/* Hero */}
-          <header className="text-center mb-10 md:mb-14 animate-fade-up">
+          <header className="text-center mb-8 md:mb-10 animate-fade-up">
             <div className="text-xs tracking-[0.2em] uppercase text-accent/90 mb-3">
               Frogo.tv
             </div>
             <h1
               id="onboarding-title"
-              className="text-3xl sm:text-4xl md:text-5xl font-semibold text-foreground tracking-tight"
+              className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold text-foreground tracking-tight"
             >
               Curated channels. Always on.
             </h1>
@@ -114,8 +131,8 @@ export default function OnboardingOverlay({ channels }: OnboardingOverlayProps) 
 
           {/* Folders */}
           {folders.length > 0 && (
-            <section className="mb-10 md:mb-12 animate-fade-up delay-1">
-              <div className="flex items-baseline justify-between mb-4">
+            <section className="mb-8 md:mb-10 animate-fade-up delay-1">
+              <div className="flex items-baseline justify-between mb-3">
                 <h2 className="text-sm font-semibold tracking-wider uppercase text-muted">
                   Folders
                 </h2>
@@ -150,8 +167,8 @@ export default function OnboardingOverlay({ channels }: OnboardingOverlayProps) 
 
           {/* Standalones */}
           {standalones.length > 0 && (
-            <section className="mb-10 md:mb-12 animate-fade-up delay-2">
-              <h2 className="text-sm font-semibold tracking-wider uppercase text-muted mb-4">
+            <section className="mb-4 animate-fade-up delay-2">
+              <h2 className="text-sm font-semibold tracking-wider uppercase text-muted mb-3">
                 More channels
               </h2>
               <div className="flex flex-wrap gap-2 md:gap-3">
@@ -171,26 +188,28 @@ export default function OnboardingOverlay({ channels }: OnboardingOverlayProps) 
               </div>
             </section>
           )}
-
-          {/* Footer */}
-          <footer className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 pt-6 border-t border-white/5 animate-fade-up delay-3">
-            <div className="text-xs md:text-sm text-muted flex items-center gap-2">
-              <span aria-hidden="true" className="text-accent">↗</span>
-              <span>
-                Pair your phone using the QR code in the upper-right — use it as
-                a remote.
-              </span>
-            </div>
-            <button
-              onClick={dismiss}
-              className="self-end sm:self-auto rounded-lg bg-accent hover:bg-accent-hover text-white font-medium px-5 md:px-6 py-2.5 md:py-3 text-sm md:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-black"
-              autoFocus
-            >
-              Just watch
-            </button>
-          </footer>
         </div>
       </div>
+
+      {/* Sticky footer — always visible, outside the scroll area */}
+      <footer className="shrink-0 border-t border-white/10 bg-black/40 backdrop-blur-sm animate-fade-up delay-3">
+        <div className="mx-auto w-full max-w-6xl px-6 sm:px-10 py-3 md:py-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="text-xs md:text-sm text-muted flex items-center gap-2">
+            <span aria-hidden="true" className="text-accent">↗</span>
+            <span>
+              Pair your phone using the QR code in the upper-right — use it as
+              a remote.
+            </span>
+          </div>
+          <button
+            onClick={dismiss}
+            className="self-end sm:self-auto rounded-lg bg-accent hover:bg-accent-hover text-white font-medium px-5 md:px-6 py-2.5 md:py-3 text-sm md:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-black"
+            autoFocus
+          >
+            Just watch
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }

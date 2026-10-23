@@ -15,9 +15,10 @@ type YTPlayer = {
 /**
  * Manages muted-autoplay unmute attempts and screen-click play/pause.
  * Always starts muted (browser policy); tries to unmute once player is
- * ready; unmutes on first user click regardless.
+ * ready; unmutes on first user click regardless. While `hold` is true
+ * (e.g. the onboarding overlay is up) the automatic unmute is deferred.
  */
-export function useAutoplay(playerRef: React.RefObject<YTPlayer | null>) {
+export function useAutoplay(playerRef: React.RefObject<YTPlayer | null>, hold = false) {
   const [autoplay, setAutoplay] = useState(getInitialAutoplayState);
 
   const onPlayerReady = useCallback(() => {
@@ -25,7 +26,7 @@ export function useAutoplay(playerRef: React.RefObject<YTPlayer | null>) {
   }, []);
 
   useEffect(() => {
-    if (autoplay.state !== "muted" || !autoplay.shouldAttemptUnmute) return;
+    if (hold || autoplay.state !== "muted" || !autoplay.shouldAttemptUnmute) return;
     const player = playerRef.current;
     if (!player) return;
 
@@ -46,7 +47,16 @@ export function useAutoplay(playerRef: React.RefObject<YTPlayer | null>) {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [autoplay.state, autoplay.shouldAttemptUnmute, playerRef]);
+  }, [hold, autoplay.state, autoplay.shouldAttemptUnmute, playerRef]);
+
+  // Unmute from a user gesture without touching play/pause. Before the
+  // player is ready this is a no-op; the deferred unmute attempt runs then.
+  const unlockAudio = useCallback(() => {
+    if (autoplay.state !== "muted") return;
+    setAutoplay((s) => autoplayTransition(s, { type: "USER_INTERACTION" }));
+    playerRef.current?.unMute?.();
+    playerRef.current?.setVolume?.(100);
+  }, [autoplay.state, playerRef]);
 
   const handleScreenClick = useCallback(() => {
     const player = playerRef.current;
@@ -66,5 +76,5 @@ export function useAutoplay(playerRef: React.RefObject<YTPlayer | null>) {
     else player.playVideo?.();
   }, [autoplay.state, playerRef]);
 
-  return { autoplay, onPlayerReady, handleScreenClick };
+  return { autoplay, onPlayerReady, handleScreenClick, unlockAudio };
 }
